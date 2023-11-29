@@ -1,13 +1,15 @@
 # manymusic-mtg-jamendo
 Streamlit app to create subsets of The MTG Jamendo dataset
 
+
 # Install
 
-```
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.py
-```
+1. Get [mtg-jamendo-dataset](https://github.com/MTG/mtg-jamendo-dataset) as a submodule:  `git submodule init && git submodule update`
+
+2. Create and activate a virtual env: `python3 -m venv venv && source venv/bin/activate`
+
+3. Install the Python dependencies: `pip install -r requirements.py`
+
 
 ## Usarge
 

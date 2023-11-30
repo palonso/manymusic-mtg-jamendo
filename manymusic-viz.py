@@ -20,9 +20,7 @@ import commons
 
 data_dir = Path("data/")
 
-av_predictions_dir = (
-    data_dir / "predictions" / "emomusic-msd-musicnn-2" / "emomusic-msd-musicnn-2"
-)
+av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
 
 aspects = ("arousal", "valence")
 traject_types = ("ascending", "descending", "peaks")

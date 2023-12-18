@@ -23,10 +23,11 @@ data_dir = Path("data/")
 av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
 
 aspects = ("arousal", "valence")
-traject_types = ("ascending", "descending", "peaks")
+traject_types = ("ascending", "descending", "peaks", "climax")
 
 sampling_size = 100
-example_size = 2
+example_size = 4
+genre_threshold = 0.1
 
 
 def audio_url(trackid):
@@ -101,7 +102,7 @@ def plot_av(tid: int, axvline_loc: float = None):
 
     if axvline_loc is not None:
         axvline_loc *= emb2days
-        label = f"max abs(delta): {formatter(axvline_loc)}"
+        label = f"location: {formatter(axvline_loc)}"
         plt.axvline(axvline_loc, color="k", label=label)
 
     ax.legend()
@@ -312,6 +313,7 @@ for tid in random.sample(list(tids_non_music), example_size):
 
 blacklist = (
     "mood/theme---xmas",
+    "mood/theme---christmas",
     "mood/theme---advertising",
     "mood/theme---presentation",
     "mood/theme---backgrounds",
@@ -444,11 +446,68 @@ def reduce_max_abs(data_in: dict):
     return data
 
 
+@st.cache_data
+def reduce_climax(data_in: dict):
+    # new criterium -> locate for climax peak
+    # - betwen 30% and 90%
+    # needs to be a positive arousal peak
+    # valence should be strengthen
+    thres = 0.3
+
+    data = dict()
+    for k, sample in data_in.items():
+        min_pos = int(thres * len(sample))
+        # we only need arousal
+        sample = sample[:, 1]
+        # remove beginning and end
+        sample = sample[min_pos:-min_pos]
+        pos_diff = sample > 0
+
+        # count build up samples
+        pos_points = 0
+        max_skips = 5
+        skips = max_skips
+        for climax_loc, point in enumerate(pos_diff):
+            if point:
+                pos_points += 1
+                skips = max_skips
+            else:
+                skips -= 1
+            if not skips:
+                break
+
+        # check at least at least some after-climax
+        neg_thres = 5
+        neg_points = 0
+        max_skips = 5
+        skips = max_skips
+        for point in pos_diff[:climax_loc:-1]:
+            if not point:
+                neg_points += 1
+                skips = max_skips
+            else:
+                skips -= 1
+            if not skips:
+                break
+
+        pos_points += min_pos
+
+        # do not consider sample if there is no after-climax
+        if neg_points < neg_thres:
+            pos_points = 0
+
+        data[k] = {"arousal": pos_points}
+    return data
+
+
 data_av_diff_sum = reduce_data(data_av_diff)
 data_av_diff_sum = pd.DataFrame.from_dict(data_av_diff_sum, orient="index")
 
 data_av_diff_max = reduce_max_abs(data_av_diff)
 data_av_diff_max = pd.DataFrame.from_dict(data_av_diff_max, orient="index")
+
+data_a_climax = reduce_climax(data_av_diff)
+data_a_climax_max = pd.DataFrame.from_dict(data_a_climax, orient="index")
 
 trajectory_groups = defaultdict(dict)
 trajectory_groups["arousal"]["ascending"] = data_av_diff_sum.nlargest(
@@ -466,16 +525,21 @@ trajectory_groups["valence"]["ascending"] = data_av_diff_sum.nlargest(
 trajectory_groups["valence"]["descending"] = data_av_diff_sum.nsmallest(
     sampling_size, "valence"
 )
-
 trajectory_groups["valence"]["peaks"] = data_av_diff_max.nlargest(
     sampling_size, "valence"
 )
 
+trajectory_groups["arousal"]["climax"] = data_a_climax_max.nlargest(
+    sampling_size, "arousal"
+)
 
 st.write("## Sample selection by A/V trajectories")
 
 for aspect in aspects:
     for traject_type in traject_types:
+        if traject_type not in trajectory_groups[aspect]:
+            continue
+
         st.write(f"### {aspect} {traject_type}")
         for tid in trajectory_groups[aspect][traject_type].sample(example_size).index:
             play(tid)
@@ -483,6 +547,8 @@ for aspect in aspects:
             max_loc = None
             if traject_type == "peaks":
                 max_loc = data_av_diff_max.loc[tid][f"{aspect}_loc"]
+            if traject_type == "climax":
+                max_loc = data_a_climax_max.loc[tid][f"{aspect}"]
             plot_av(tid, axvline_loc=max_loc)
 
 
@@ -494,7 +560,7 @@ data_genres = data_styles.groupby(lambda x: x.split("---")[1], axis=1).max()
 data_genres = data_genres[data_genres.index.isin(tids_clean)].copy()
 
 genres = set(data_genres.columns)
-genres_blacklist = set(["Non-Music", "Stage & Screen"])
+genres_blacklist = set(["Non-Music", "Stage & Screen", "Children's"])
 genres_good = genres - genres_blacklist
 
 st.write(f"sampleing from {len(genres_good)} genres")
@@ -504,6 +570,12 @@ genre_groups = dict()
 for genre in list(genres_good):
     st.write(f"### {genre}")
     genre_groups[genre] = data_genres.nlargest(sampling_size, genre)
+    genre_groups[genre].drop(
+        genre_groups[genre][genre_groups[genre][genre] < genre_threshold].index,
+        inplace=True,
+    )
+
+    st.write(f"keeping {len(genre_groups[genre])}/{sampling_size} ids for {genre}")
 
     for tid in genre_groups[genre].sample(example_size).index:
         play(tid)
@@ -514,6 +586,8 @@ tids_subset = set()
 yid2src = dict()
 for aspect in aspects:
     for traject_type in traject_types:
+        if traject_type not in trajectory_groups[aspect]:
+            continue
         subset_data[aspect][traject_type] = list(
             trajectory_groups[aspect][traject_type].index
         )
@@ -604,3 +678,8 @@ with open("data/candidates.json", "w") as f:
     json.dump(subset_data, f)
 
 st.write("## ok!")
+
+
+# plot encode genre with color and AB curve/peaks with simbol, split in two plots/ AV trajectory and genres
+
+# make player with tabs for every type of cluster of sounds with pages to listen/visualize the full selection of tracks.

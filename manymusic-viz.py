@@ -145,13 +145,19 @@ st.write(
 durations = np.array([v["duration"] for v in tracks.values()])
 max_duration = int(np.max(durations) + 0.5)
 
-dur_min, dur_max = st.slider("Minimum duration (seconds)", 0, max_duration, (60, 300))
+dur_min, dur_max = st.slider("Minimum duration (seconds)", 0, max_duration, (180, 300))
 
 tids_short = {tid for tid, values in tracks.items() if values["duration"] < dur_min}
 tids_long = {tid for tid, values in tracks.items() if values["duration"] > dur_max}
 
 tids_init = set(data_av_time.keys())
 tids_clean = tids_init - tids_short - tids_long
+
+fig, ax = plt.subplots()
+sns.histplot(durations, ax=ax)
+plt.axvline(dur_min, color="r")
+plt.axvline(dur_max, color="r")
+st.pyplot(fig)
 
 st.write(
     f"""
@@ -162,7 +168,7 @@ st.write(
     long tracks: {len(tids_long)}
 
     remaining tracks: {len(tids_clean)}
-"""
+    """
 )
 
 

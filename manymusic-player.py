@@ -32,6 +32,7 @@ def load_data():
 
 def audio_url(trackid):
     """Return the Jamendo URL for a given trackid."""
+    return f"https://mp3d.jamendo.com/?trackid={trackid}&format=mp32#t=0,120"
 
 
 def play(tid: str):

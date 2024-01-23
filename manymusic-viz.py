@@ -1,7 +1,6 @@
 import cmath
 import json
-import pickle as pk
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 import random
 import sys

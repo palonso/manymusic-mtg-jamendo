@@ -10,6 +10,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+import tslearn as ts
+from tslearn.utils import to_time_series_dataset
+from tslearn.clustering import TimeSeriesKMeans
 from matplotlib.dates import DateFormatter
 from scipy.ndimage import gaussian_filter1d
 
@@ -24,8 +27,12 @@ av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
 aspects = ("arousal", "valence")
 traject_types = ("ascending", "descending", "peaks", "climax")
 
-sampling_size = 100
-example_size = 4
+sampling_size_top_activations = 100
+n_samples_av_curves = 10
+n_samples_av_clusters = 10
+n_clusters_av = 5
+
+example_size = 3
 genre_threshold = 0.1
 
 
@@ -86,8 +93,11 @@ def load_av_time_data():
     return data_av_time
 
 
-def plot_av(tid: int, axvline_loc: float = None):
-    sample = data_av_smooth[tid]
+def plot_av(tid: int, axvline_loc: float = None, data: np.array = None):
+    if data is None:
+        sample = data_av_smooth[tid]
+    else:
+        sample = data
 
     formatter = DateFormatter("%M'%S''")
 
@@ -282,32 +292,34 @@ st.pyplot(fig)
 
 st.write(
     """
-    ## 6. Remove tracks with Non-Music style
+    ## 6. Remove tracks with blacklisted styles
     """
 )
 
 act_thres = st.slider(
-    "Min value of the top non-music class to discard the track", 0.0, 1.0, 0.1
+    "Min value of the top blacklisted classes to discard the track", 0.0, 1.0, 0.1
 )
-data_non_music = data.filter(like="Non-Music")
-data_non_music_present = data_non_music[data_non_music.max(axis=1) > act_thres]
+styles_blacklisted = ("Non-Music", "Chiptune")
+for style in styles_blacklisted:
+    data_style = data.filter(like=style)
+    data_style_present = data_style[data_style.max(axis=1) > act_thres]
 
-tids_non_music = set(data_non_music_present.index)
-tids_clean -= tids_non_music
+    tids_style = set(data_style_present.index)
+    tids_clean -= tids_style
 
-st.write(
-    f"""
-    non-music tracks: {len(tids_non_music)}
+    st.write(
+        f"""
+        {style} tracks: {len(tids_style)}
 
-    remaining tracks: {len(tids_clean)}
-    """
-)
+        remaining tracks: {len(tids_clean)}
+        """
+    )
 
-st.write("Examples of discarded tracks")
+    st.write("Examples of discarded tracks")
 
-for tid in random.sample(list(tids_non_music), example_size):
-    play(tid)
-    st.dataframe(data_non_music_present.loc[tid].nlargest(3))
+    for tid in random.sample(list(tids_style), example_size):
+        play(tid)
+        st.dataframe(data_style_present.loc[tid].nlargest(3))
 
 
 blacklist = (
@@ -499,59 +511,15 @@ def reduce_climax(data_in: dict):
     return data
 
 
+st.write("prepairing data...")
 data_av_diff_sum = reduce_data(data_av_diff)
 data_av_diff_sum = pd.DataFrame.from_dict(data_av_diff_sum, orient="index")
 
 data_av_diff_max = reduce_max_abs(data_av_diff)
 data_av_diff_max = pd.DataFrame.from_dict(data_av_diff_max, orient="index")
 
-data_a_climax = reduce_climax(data_av_diff)
-data_a_climax_max = pd.DataFrame.from_dict(data_a_climax, orient="index")
-
-trajectory_groups = defaultdict(dict)
-trajectory_groups["arousal"]["ascending"] = data_av_diff_sum.nlargest(
-    sampling_size, "arousal"
-)
-trajectory_groups["arousal"]["descending"] = data_av_diff_sum.nsmallest(
-    sampling_size, "arousal"
-)
-trajectory_groups["arousal"]["peaks"] = data_av_diff_max.nlargest(
-    sampling_size, "arousal"
-)
-trajectory_groups["valence"]["ascending"] = data_av_diff_sum.nlargest(
-    sampling_size, "valence"
-)
-trajectory_groups["valence"]["descending"] = data_av_diff_sum.nsmallest(
-    sampling_size, "valence"
-)
-trajectory_groups["valence"]["peaks"] = data_av_diff_max.nlargest(
-    sampling_size, "valence"
-)
-
-trajectory_groups["arousal"]["climax"] = data_a_climax_max.nlargest(
-    sampling_size, "arousal"
-)
-
-st.write("## Sample selection by A/V trajectories")
-
-for aspect in aspects:
-    for traject_type in traject_types:
-        if traject_type not in trajectory_groups[aspect]:
-            continue
-
-        st.write(f"### {aspect} {traject_type}")
-        for tid in trajectory_groups[aspect][traject_type].sample(example_size).index:
-            play(tid)
-
-            max_loc = None
-            if traject_type == "peaks":
-                max_loc = data_av_diff_max.loc[tid][f"{aspect}_loc"]
-            if traject_type == "climax":
-                max_loc = data_a_climax_max.loc[tid][f"{aspect}"]
-            plot_av(tid, axvline_loc=max_loc)
-
-
-st.write("## Sample selection by estimated music style")
+data_a_climax_max = reduce_climax(data_av_diff)
+data_a_climax_max = pd.DataFrame.from_dict(data_a_climax_max, orient="index")
 
 data_styles = data.filter(like="genre_discogs400-discogs-effnet-1")
 
@@ -562,50 +530,115 @@ genres = set(data_genres.columns)
 genres_blacklist = set(["Non-Music", "Stage & Screen", "Children's"])
 genres_good = genres - genres_blacklist
 
-st.write(f"sampleing from {len(genres_good)} genres")
+st.write(f"## Selecting samples from {len(genres_good)} music styles")
 
-
-genre_groups = dict()
+data_selected = dict()
 for genre in list(genres_good):
-    st.write(f"### {genre}")
-    genre_groups[genre] = data_genres.nlargest(sampling_size, genre)
-    genre_groups[genre].drop(
-        genre_groups[genre][genre_groups[genre][genre] < genre_threshold].index,
-        inplace=True,
+    data_selected[genre] = dict()
+
+    # Getting top activations for this genre
+    data_genre = data_genres[data_genres[genre] > genre_threshold]
+    top_activations = data_genre.nlargest(sampling_size_top_activations, genre)
+    st.write(
+        f"keeping {len(top_activations)}/{sampling_size_top_activations} ids for {genre}"
     )
 
-    st.write(f"keeping {len(genre_groups[genre])}/{sampling_size} ids for {genre}")
-
-    for tid in genre_groups[genre].sample(example_size).index:
+    st.write(f"### Top {genre} activations")
+    for tid in top_activations.sample(example_size).index:
         play(tid)
+        st.write(f"`{genre}` activation: `{top_activations[genre].loc[tid]:.3f}`")
+
+    data_selected[genre]["top_activations"] = top_activations
+
+    # get prototypical av curves for this genre
+    data_av_genre = {k: v for k, v in data_av_smooth.items() if k in data_genre.index}
+    tids_av_genre = list(data_av_genre.keys())
+    data_av_genre_ts = to_time_series_dataset(list(data_av_genre.values()))
+
+    kmeans = TimeSeriesKMeans(n_clusters=n_clusters_av, metric="dtw")
+    y_distances = kmeans.fit_transform(data_av_genre_ts)
+
+    sorting = np.argsort(y_distances, axis=0)
+    indices = sorting[:n_samples_av_clusters, :]
+
+    for i_cluster in range(n_clusters_av):
+        st.write(f"Closest to {i_cluster + 1}/{n_clusters_av} k-means clusters")
+
+        cluster_centroid = kmeans.cluster_centers_[i_cluster]
+
+        plot_av(None, data=cluster_centroid)
+
+        av_cluster_ids = [tids_av_genre[i] for i in indices[:, i_cluster]]
+        data_clusts = data_genre.loc[av_cluster_ids]
+        data_selected[genre][f"av_cluster_{i_cluster}"] = data_clusts
+
+    # get intersection of data genre and data av diff sum
+    data_genre_av_diff_sum = data_av_diff_sum[
+        data_av_diff_sum.index.isin(data_genre.index)
+    ]
+    data_genre_av_diff_max = data_av_diff_max[
+        data_av_diff_max.index.isin(data_genre.index)
+    ]
+    data_genre_a_climax_max = data_a_climax_max[
+        data_a_climax_max.index.isin(data_genre.index)
+    ]
+
+    for aspect in aspects:
+        for order in ["ascending", "descending"]:
+            st.write(f"### Top {genre} {order} {aspect} tracks ")
+            if order == "ascending":
+                data_aspect = data_genre_av_diff_sum.nlargest(
+                    n_samples_av_curves, aspect
+                )
+            elif order == "descending":
+                data_aspect = data_genre_av_diff_sum.nsmallest(
+                    n_samples_av_curves, aspect
+                )
+            data_selected[genre][f"{aspect}_ascending"] = data_aspect
+            for tid in data_aspect.sample(example_size).index:
+                play(tid)
+                plot_av(tid, axvline_loc=None)
+
+        st.write(f"### Top {genre} {aspect} maximum difference")
+        data_aspect = data_genre_av_diff_max.nlargest(n_samples_av_curves, aspect)
+        data_selected[genre][f"{aspect}_max_diff"] = data_aspect
+        for tid in data_aspect.sample(example_size).index:
+            max_loc = data_genre_av_diff_max.loc[tid][f"{aspect}_loc"]
+            plot_av(tid, axvline_loc=max_loc)
+            play(tid)
+
+        if aspect == "arousal":
+            st.write(f"### Top {genre} {aspect} climax")
+            data_aspect = data_genre_a_climax_max.nlargest(n_samples_av_curves, aspect)
+            data_selected[genre][f"{aspect}_climax"] = data_aspect
+            for tid in data_aspect.sample(example_size).index:
+                max_loc = data_genre_a_climax_max.loc[tid][f"{aspect}"]
+                plot_av(tid, axvline_loc=max_loc)
+                play(tid)
 
 
-subset_data = defaultdict(dict)
 tids_subset = set()
-yid2src = dict()
-for aspect in aspects:
-    for traject_type in traject_types:
-        if traject_type not in trajectory_groups[aspect]:
-            continue
-        subset_data[aspect][traject_type] = list(
-            trajectory_groups[aspect][traject_type].index
-        )
-        tids_subset.update(subset_data[aspect][traject_type])
-        for yid in subset_data[aspect][traject_type]:
-            yid2src[yid] = f"{aspect}, {traject_type}"
+tid2source = dict()
+for data_genre in data_selected.values():
+    for subset_name, subset_data in data_genre.items():
+        tids_subset.update(subset_data.index)
 
-for genre in genres_good:
-    subset_data[genre] = list(genre_groups[genre].index)
-    tids_subset.update(subset_data[genre])
-    for yid in subset_data[genre]:
-        yid2src[yid] = "genre"
+        for tid in subset_data.index:
+            if subset_name == "top_activations":
+                source = "top_activations"
+            elif (
+                "peaks" in subset_name
+                or "climax" in subset_name
+                or "max_diff" in subset_name
+            ):
+                source = "predefined_curve"
+            tid2source[tid] = source
 
-yid2src = pd.DataFrame.from_dict(yid2src, orient="index")
 
 st.write("## Ploting resulting sample in the A/V place")
 
 data_c = data[data.index.isin(tids_subset)].copy()
-data_c["source"] = yid2src
+data_c["source"] = data_c.index.map(tid2source)
 
 
 # av_models = ("emomusic", "muse", "deam")
@@ -674,7 +707,7 @@ for q, yids in data_quadrants.items():
 
 st.write("## Save resulting list of candidates")
 with open("data/candidates.json", "w") as f:
-    json.dump(subset_data, f)
+    json.dump(data_genre, f)
 
 st.write("## ok!")
 

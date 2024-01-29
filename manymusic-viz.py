@@ -704,10 +704,15 @@ data_quadrants = {
 for q, yids in data_quadrants.items():
     st.write(f"{q} has {len(yids)} ids.")
 
+data_out = dict()
+for k, v in data_selected.items():
+    data_out[k] = dict()
+    for k2, v2 in v.items():
+        data_out[k][k2] = list(v2.index)
 
 st.write("## Save resulting list of candidates")
 with open("data/candidates.json", "w") as f:
-    json.dump(data_genre, f)
+    json.dump(data_out, f)
 
 st.write("## ok!")
 

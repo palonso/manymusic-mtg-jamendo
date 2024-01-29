@@ -431,94 +431,6 @@ def reduce_data(data_in: dict):
         data[k] = {"arousal": reduced[1], "valence": reduced[0]}
     return data
 
-
-@st.cache_data
-def reduce_max_abs(data_in: dict):
-    thres = 15
-
-    data = dict()
-    shift = 0
-    for k, sample in data_in.items():
-        if sample.shape[0] > 2 * thres:
-            sample = sample[thres:-thres, :]
-            shift = thres
-
-        absolute = np.abs(sample)
-        argmax_loc = np.argmax(absolute, axis=0)
-
-        data[k] = {
-            "arousal": absolute[argmax_loc[1], 1],
-            "valence": absolute[argmax_loc[0], 0],
-            "arousal_loc": argmax_loc[1] + shift,
-            "valence_loc": argmax_loc[0] + shift,
-        }
-    return data
-
-
-@st.cache_data
-def reduce_climax(data_in: dict):
-    # new criterium -> locate for climax peak
-    # - betwen 30% and 90%
-    # needs to be a positive arousal peak
-    # valence should be strengthen
-    thres = 0.3
-
-    data = dict()
-    for k, sample in data_in.items():
-        min_pos = int(thres * len(sample))
-        # we only need arousal
-        sample = sample[:, 1]
-        # remove beginning and end
-        sample = sample[min_pos:-min_pos]
-        pos_diff = sample > 0
-
-        # count build up samples
-        pos_points = 0
-        max_skips = 5
-        skips = max_skips
-        for climax_loc, point in enumerate(pos_diff):
-            if point:
-                pos_points += 1
-                skips = max_skips
-            else:
-                skips -= 1
-            if not skips:
-                break
-
-        # check at least at least some after-climax
-        neg_thres = 5
-        neg_points = 0
-        max_skips = 5
-        skips = max_skips
-        for point in pos_diff[:climax_loc:-1]:
-            if not point:
-                neg_points += 1
-                skips = max_skips
-            else:
-                skips -= 1
-            if not skips:
-                break
-
-        pos_points += min_pos
-
-        # do not consider sample if there is no after-climax
-        if neg_points < neg_thres:
-            pos_points = 0
-
-        data[k] = {"arousal": pos_points}
-    return data
-
-
-st.write("prepairing data...")
-data_av_diff_sum = reduce_data(data_av_diff)
-data_av_diff_sum = pd.DataFrame.from_dict(data_av_diff_sum, orient="index")
-
-data_av_diff_max = reduce_max_abs(data_av_diff)
-data_av_diff_max = pd.DataFrame.from_dict(data_av_diff_max, orient="index")
-
-data_a_climax_max = reduce_climax(data_av_diff)
-data_a_climax_max = pd.DataFrame.from_dict(data_a_climax_max, orient="index")
-
 data_styles = data.filter(like="genre_discogs400-discogs-effnet-1")
 
 data_genres = data_styles.groupby(lambda x: x.split("---")[1], axis=1).max()
@@ -536,17 +448,6 @@ for genre in list(genres_good):
 
     # Getting top activations for this genre
     data_genre = data_genres[data_genres[genre] > genre_threshold]
-    top_activations = data_genre.nlargest(sampling_size_top_activations, genre)
-    st.write(
-        f"keeping {len(top_activations)}/{sampling_size_top_activations} ids for {genre}"
-    )
-
-    st.write(f"### Top {genre} activations")
-    for tid in top_activations.sample(example_size).index:
-        play(tid)
-        st.write(f"`{genre}` activation: `{top_activations[genre].loc[tid]:.3f}`")
-
-    data_selected[genre]["top_activations"] = top_activations
 
     # get prototypical av curves for this genre
     data_av_genre = {k: v for k, v in data_av_smooth.items() if k in data_genre.index}
@@ -570,67 +471,14 @@ for genre in list(genres_good):
         data_clusts = data_genre.loc[av_cluster_ids]
         data_selected[genre][f"av_cluster_{i_cluster}"] = data_clusts
 
-    # get intersection of data genre and data av diff sum
-    data_genre_av_diff_sum = data_av_diff_sum[
-        data_av_diff_sum.index.isin(data_genre.index)
-    ]
-    data_genre_av_diff_max = data_av_diff_max[
-        data_av_diff_max.index.isin(data_genre.index)
-    ]
-    data_genre_a_climax_max = data_a_climax_max[
-        data_a_climax_max.index.isin(data_genre.index)
-    ]
-
-    for aspect in aspects:
-        for order in ["ascending", "descending"]:
-            st.write(f"### Top {genre} {order} {aspect} tracks ")
-            if order == "ascending":
-                data_aspect = data_genre_av_diff_sum.nlargest(
-                    n_samples_av_curves, aspect
-                )
-            elif order == "descending":
-                data_aspect = data_genre_av_diff_sum.nsmallest(
-                    n_samples_av_curves, aspect
-                )
-            data_selected[genre][f"{aspect}_ascending"] = data_aspect
-            for tid in data_aspect.sample(example_size).index:
-                play(tid)
-                plot_av(tid, axvline_loc=None)
-
-        st.write(f"### Top {genre} {aspect} maximum difference")
-        data_aspect = data_genre_av_diff_max.nlargest(n_samples_av_curves, aspect)
-        data_selected[genre][f"{aspect}_max_diff"] = data_aspect
-        for tid in data_aspect.sample(example_size).index:
-            max_loc = data_genre_av_diff_max.loc[tid][f"{aspect}_loc"]
-            plot_av(tid, axvline_loc=max_loc)
-            play(tid)
-
-        if aspect == "arousal":
-            st.write(f"### Top {genre} {aspect} climax")
-            data_aspect = data_genre_a_climax_max.nlargest(n_samples_av_curves, aspect)
-            data_selected[genre][f"{aspect}_climax"] = data_aspect
-            for tid in data_aspect.sample(example_size).index:
-                max_loc = data_genre_a_climax_max.loc[tid][f"{aspect}"]
-                plot_av(tid, axvline_loc=max_loc)
-                play(tid)
-
 
 tids_subset = set()
 tid2source = dict()
 for data_genre in data_selected.values():
     for subset_name, subset_data in data_genre.items():
         tids_subset.update(subset_data.index)
-
         for tid in subset_data.index:
-            if subset_name == "top_activations":
-                source = "top_activations"
-            elif (
-                "peaks" in subset_name
-                or "climax" in subset_name
-                or "max_diff" in subset_name
-            ):
-                source = "predefined_curve"
-            tid2source[tid] = source
+            tid2source[tid] = f"{genre}_{subset_name}"
 
 
 st.write("## Ploting resulting sample in the A/V place")

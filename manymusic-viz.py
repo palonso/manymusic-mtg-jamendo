@@ -1,6 +1,5 @@
 import cmath
 import json
-from collections import defaultdict
 from pathlib import Path
 import random
 import sys
@@ -10,7 +9,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-import tslearn as ts
 from tslearn.utils import to_time_series_dataset
 from tslearn.clustering import TimeSeriesKMeans
 from matplotlib.dates import DateFormatter

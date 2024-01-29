@@ -26,9 +26,8 @@ aspects = ("arousal", "valence")
 traject_types = ("ascending", "descending", "peaks", "climax")
 
 sampling_size_top_activations = 100
-n_samples_av_curves = 10
-n_samples_av_clusters = 10
-n_clusters_av = 5
+n_samples_av_clusters = 20
+n_clusters_av = 10
 
 example_size = 3
 genre_threshold = 0.1

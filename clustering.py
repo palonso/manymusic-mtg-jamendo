@@ -156,12 +156,15 @@ for genre in list(genres_good):
     data_genre["source"] = "Not assigned"
 
     # Get AV data
-    data_genre.loc[
-        data_genre.index, f"{av_model}-msd-musicnn-2---valence-norm"
-    ] = data.loc[data_genre.index, f"{av_model}-msd-musicnn-2---valence-norm"]
-    data_genre.loc[
-        data_genre.index, f"{av_model}-msd-musicnn-2---arousal-norm"
-    ] = data.loc[data_genre.index, f"{av_model}-msd-musicnn-2---arousal-norm"]
+    v_norm_field = f"{av_model}-msd-musicnn-2---valence-norm"
+    a_norm_field = f"{av_model}-msd-musicnn-2---arousal-norm"
+
+    data_genre.loc[data_genre.index, v_norm_field] = data.loc[
+        data_genre.index, v_norm_field
+    ]
+    data_genre.loc[data_genre.index, a_norm_field] = data.loc[
+        data_genre.index, a_norm_field
+    ]
 
     if len(data_genre) < n_samples_per_genre:
         print(f"Genre {genre} has {len(data_genre)} samples, using all of them.")
@@ -180,7 +183,7 @@ for genre in list(genres_good):
 
         print(f"training k-means for {genre} with {len(data_av_genre_ts)} samples")
         kmeans = TimeSeriesKMeans(
-            n_clusters=n_clusters, metric="softdtw", max_iter_barycenter=10
+            n_clusters=n_clusters, metric="dtw", max_iter_barycenter=10
         )
         y_distances = kmeans.fit_transform(data_av_genre_ts)
 
@@ -209,11 +212,9 @@ for genre in list(genres_good):
             )
 
         sns.scatterplot(
-            data=data_genre,
-            x=f"{av_model}-msd-musicnn-2---valence-norm",
-            y=f"{av_model}-msd-musicnn-2---arousal-norm",
-            hue="source",
+            data=data_genre, x=v_norm_field, y=a_norm_field, hue="source"
         ).set_title(genre)
+
         plt.axvline(0, color="k")
         plt.axhline(0, color="k")
 
@@ -221,18 +222,16 @@ for genre in list(genres_good):
         plt.savefig(results_dir / f"{genre}_av_scatter.png")
         plt.close(fig)
 
-    data_genre["emomusic-msd-musicnn-2---av-polar-norm"] = [
+    p_norm_field = "emomusic-msd-musicnn-2---av-polar-norm"
+    data_genre[p_norm_field] = [
         cmath.polar(
-            complex(
-                data_genre["emomusic-msd-musicnn-2---valence-norm"][idx],
-                data_genre["emomusic-msd-musicnn-2---arousal-norm"][idx],
-            )
+            complex(data_genre[v_norm_field][idx], data_genre[a_norm_field][idx])
         )
         for idx in data_genre.index
     ]
 
     data_quadrants = {
-        q: get_quadrant_ids(data_genre, q, "emomusic-msd-musicnn-2---av-polar-norm")
+        q: get_quadrant_ids(data_genre, q, p_norm_field)
         for q in ("A+V+", "A-V+", "A+V-", "A-V-")
     }
 

@@ -101,8 +101,8 @@ def prev_page():
 st.write(f"Page {st.session_state.page + 1}/{st.session_state.n_pages}")
 
 col1, _, _, col2 = st.columns(4)
-col2.button("Next page ->", on_click=next_page)
-col1.button("<- Previous page", on_click=prev_page)
+col2.button("Next page ➡️", on_click=next_page)
+col1.button("⬅️  Previous page", on_click=prev_page)
 
 ids_show = ids[
     st.session_state.page

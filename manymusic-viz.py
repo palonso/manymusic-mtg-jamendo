@@ -560,8 +560,3 @@ with open("data/candidates.json", "w") as f:
     json.dump(data_out, f)
 
 st.write("## ok!")
-
-
-# plot encode genre with color and AB curve/peaks with simbol, split in two plots/ AV trajectory and genres
-
-# make player with tabs for every type of cluster of sounds with pages to listen/visualize the full selection of tracks.

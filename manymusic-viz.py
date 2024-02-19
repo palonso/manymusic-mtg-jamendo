@@ -1,18 +1,14 @@
-import cmath
 import json
-from pathlib import Path
 import random
 import sys
+from collections import defaultdict, Counter
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from tslearn.utils import to_time_series_dataset
-from tslearn.clustering import TimeSeriesKMeans
-from matplotlib.dates import DateFormatter
-from scipy.ndimage import gaussian_filter1d
 
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
@@ -20,17 +16,12 @@ import commons
 
 data_dir = Path("data/")
 
-av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
 
 aspects = ("arousal", "valence")
 traject_types = ("ascending", "descending", "peaks", "climax")
 
-sampling_size_top_activations = 100
-n_samples_av_clusters = 20
-n_clusters_av = 10
 
 example_size = 3
-genre_threshold = 0.1
 
 
 def audio_url(trackid):
@@ -67,57 +58,6 @@ def load_data():
     return data, tracks
 
 
-@st.cache_data
-def load_av_time_data():
-    """Load and prepare time-wise arousal and valence data in the streamlit cache."""
-    data_av_time = dict()
-    pbar_av_time = st.progress(0.0, text="Loading AV predictions")
-    tids_clean_list = list(tids_clean)
-    for i, index in enumerate(tids_clean_list):
-        try:
-            av_filename = (av_predictions_dir / tracks[index]["path"]).with_suffix(
-                ".npy"
-            )
-            # load and normalize
-            data_av_time[index] = (np.load(av_filename) - 5) / 4
-        except Exception:
-            pass
-        pbar_av_time.progress((i + 1) / len(tids_clean_list))
-    pbar_av_time.empty()
-
-    st.write(f"Loaded {len(data_av_time)} AV predictions")
-
-    return data_av_time
-
-
-def plot_av(tid: int, axvline_loc: float = None, data: np.array = None):
-    if data is None:
-        sample = data_av_smooth[tid]
-    else:
-        sample = data
-
-    formatter = DateFormatter("%M'%S''")
-
-    emb2days = 63 * 256 / (16000 * 3600 * 24)
-    time = np.linspace(0, len(sample) * emb2days, len(sample))
-
-    fig, ax = plt.subplots()
-    ax.plot(time, sample[:, 0], label="valence")
-    ax.plot(time, sample[:, 1], label="arousal")
-    ax.xaxis.set_major_formatter(formatter)
-
-    if axvline_loc is not None:
-        axvline_loc *= emb2days
-        label = f"location: {formatter(axvline_loc)}"
-        plt.axvline(axvline_loc, color="k", label=label)
-
-    ax.legend()
-    fig.tight_layout()
-    st.pyplot(fig)
-
-    plt.close()
-
-
 st.write(
     """
 # ManyMusic Dataset
@@ -128,9 +68,6 @@ st.write(
 data, tracks = load_data()
 tids_init = set(tracks.keys())
 tids_clean = tids_init
-
-
-data_av_time = load_av_time_data()
 
 
 st.write(
@@ -147,7 +84,6 @@ dur_min, dur_max = st.slider("Minimum duration (seconds)", 0, max_duration, (180
 tids_short = {tid for tid, values in tracks.items() if values["duration"] < dur_min}
 tids_long = {tid for tid, values in tracks.items() if values["duration"] > dur_max}
 
-tids_init = set(data_av_time.keys())
 tids_clean = tids_init - tids_short - tids_long
 
 st.write(
@@ -361,74 +297,72 @@ for tid in random.sample(list(blacklist_tids), example_size):
     play(tid)
 
 
+# st.write(
+#     """
+#     ## 8. Remove tracks with too much/little AV dispersion
+#     """
+# )
+
+# data_av_std = {i: np.std(v, axis=0) for i, v in data_av_time.items()}
+
+# low_p, high_p = st.slider("Arousal/Valence range (percentile)", 0, 100, (10, 90))
+
+# data_av_perc = {
+#     i: np.percentile(v, high_p, axis=0) - np.percentile(v, low_p, axis=0)
+#     for i, v in data_av_time.items()
+# }
+
+# thres_av_disp = st.slider("Arousal/Valence threshold (percentile)", 0.0, 1.0, 0.15)
+
+# tids_av_disp_low = {i for i, v in data_av_perc.items() if (v < thres_av_disp).any()}
+# tids_clean -= tids_av_disp_low
+
+# st.write(
+#     f"""
+#     tracks with low A/V disperssion: {len(tids_av_disp_low)}
+
+#     remaining tracks: {len(tids_clean)}
+
+#     Examples of tracks with low A/V dispersion:
+#     """
+# )
+# for tid in random.sample(list(tids_av_disp_low), example_size):
+#     play(tid)
+
+
 st.write(
     """
-    ## 8. Remove tracks with too much/little AV dispersion
+    ## 9. Keep one track per album
     """
 )
 
-data_av_std = {i: np.std(v, axis=0) for i, v in data_av_time.items()}
+albums_set = set()
+albums_list = list()
+tids_album_duplicated = set()
+for tid in tids_clean:
+    album = tracks[tid]["album_id"]
+    if album in albums_set:
+        tids_album_duplicated.add(tid)
+    albums_set.add(album)
+    albums_list.append(album)
 
-low_p, high_p = st.slider("Arousal/Valence range (percentile)", 0, 100, (10, 90))
+tids_clean -= tids_album_duplicated
+albums_counter = Counter(albums_list)
 
-data_av_perc = {
-    i: np.percentile(v, high_p, axis=0) - np.percentile(v, low_p, axis=0)
-    for i, v in data_av_time.items()
-}
+top_albums = albums_counter.most_common(10)
 
-thres_av_disp = st.slider("Arousal/Valence threshold (percentile)", 0.0, 1.0, 0.15)
-
-tids_av_disp_low = {i for i, v in data_av_perc.items() if (v < thres_av_disp).any()}
-tids_clean -= tids_av_disp_low
 
 st.write(
     f"""
-    tracks with low A/V disperssion : {len(tids_av_disp_low)}
+    tracks belonging to the same album: {len(tids_album_duplicated)}
 
     remaining tracks: {len(tids_clean)}
 
-    Examples of tracks with low A/V dispersion:
+    Top 10 albums with more tracks:
+    {top_albums}
     """
 )
 
-for tid in random.sample(list(tids_av_disp_low), example_size):
-    play(tid)
-
-sample_tid = list(tids_clean)[0]
-sample = data_av_time[sample_tid]
-
-
-sigma = st.slider("Gausian filter smoothing", 0, 100, 5)
-sample_filt = gaussian_filter1d(sample, sigma, axis=0)
-
-data_av_clean = {tid: data_av_time[tid] for tid in list(tids_clean)}
-
-
-@st.cache_data
-def smooth_data(data: dict, sigma: int):
-    return {k: gaussian_filter1d(sample, sigma, axis=0) for k, sample in data.items()}
-
-
-data_av_smooth = smooth_data(data_av_clean, sigma)
-plot_av(sample_tid)
-
-
-@st.cache_data
-def diff_data(data: dict):
-    return {k: np.diff(sample, axis=0) for k, sample in data.items()}
-
-
-data_av_diff = diff_data(data_av_smooth)
-
-
-@st.cache_data
-def reduce_data(data_in: dict):
-    # return {k: np.sum(sample, axis=0) for k, sample in data.items()}
-    data = dict()
-    for k, sample in data_in.items():
-        reduced = np.mean(sample, axis=0)
-        data[k] = {"arousal": reduced[1], "valence": reduced[0]}
-    return data
 
 data_styles = data.filter(like="genre_discogs400-discogs-effnet-1")
 
@@ -439,124 +373,7 @@ genres = set(data_genres.columns)
 genres_blacklist = set(["Non-Music", "Stage & Screen", "Children's"])
 genres_good = genres - genres_blacklist
 
-st.write(f"## Selecting samples from {len(genres_good)} music styles")
+st.write(f"Saving {len(tids_clean)} clean tids")
 
-data_selected = dict()
-for genre in list(genres_good):
-    data_selected[genre] = dict()
-
-    # Getting top activations for this genre
-    data_genre = data_genres[data_genres[genre] > genre_threshold]
-
-    # get prototypical av curves for this genre
-    data_av_genre = {k: v for k, v in data_av_smooth.items() if k in data_genre.index}
-    tids_av_genre = list(data_av_genre.keys())
-    data_av_genre_ts = to_time_series_dataset(list(data_av_genre.values()))
-
-    kmeans = TimeSeriesKMeans(n_clusters=n_clusters_av, metric="dtw")
-    y_distances = kmeans.fit_transform(data_av_genre_ts)
-
-    sorting = np.argsort(y_distances, axis=0)
-    indices = sorting[:n_samples_av_clusters, :]
-
-    for i_cluster in range(n_clusters_av):
-        st.write(f"Closest to {i_cluster + 1}/{n_clusters_av} k-means clusters")
-
-        cluster_centroid = kmeans.cluster_centers_[i_cluster]
-
-        plot_av(None, data=cluster_centroid)
-
-        av_cluster_ids = [tids_av_genre[i] for i in indices[:, i_cluster]]
-        data_clusts = data_genre.loc[av_cluster_ids]
-        data_selected[genre][f"av_cluster_{i_cluster}"] = data_clusts
-
-
-tids_subset = set()
-tid2source = dict()
-for genre, data_genre in data_selected.items():
-    for subset_name, subset_data in data_genre.items():
-        tids_subset.update(subset_data.index)
-        for tid in subset_data.index:
-            tid2source[tid] = f"{genre}_{subset_name}"
-
-
-st.write("## Ploting resulting sample in the A/V place")
-
-data_c = data[data.index.isin(tids_subset)].copy()
-data_c["source"] = data_c.index.map(tid2source)
-
-
-# av_models = ("emomusic", "muse", "deam")
-av_models = ["emomusic"]
-for dataset in av_models:
-    fig, ax = plt.subplots()
-    data_c[f"{dataset}-msd-musicnn-2---valence-norm"] = (
-        data_c[f"{dataset}-msd-musicnn-2---valence"] - 5
-    ) / 4
-    data_c[f"{dataset}-msd-musicnn-2---arousal-norm"] = (
-        data_c[f"{dataset}-msd-musicnn-2---arousal"] - 5
-    ) / 4
-
-    sns.scatterplot(
-        data=data_c,
-        x=f"{dataset}-msd-musicnn-2---valence-norm",
-        y=f"{dataset}-msd-musicnn-2---arousal-norm",
-        hue="source",
-    ).set_title(dataset)
-    plt.axvline(0, color="k")
-    plt.axhline(0, color="k")
-    st.pyplot(fig)
-
-    plt.close(fig)
-
-quad_rad_ss = {
-    "A+V+": 0,
-    "A-V+": -np.pi / 2,
-    "A+V-": np.pi / 2,
-    "A-V-": -np.pi,
-}
-
-quad_rad_es = {
-    "A+V+": np.pi / 2,
-    "A-V+": 0,
-    "A+V-": np.pi,
-    "A-V-": -np.pi / 2,
-}
-
-data_c["emomusic-msd-musicnn-2---av-polar-norm"] = [
-    cmath.polar(
-        complex(
-            data_c["emomusic-msd-musicnn-2---valence-norm"][idx],
-            data_c["emomusic-msd-musicnn-2---arousal-norm"][idx],
-        )
-    )
-    for idx in data_c.index
-]
-
-
-def get_quadrant_ids(data, quadrant, field):
-    quad_rad_s = quad_rad_ss[quadrant]
-    quad_rad_e = quad_rad_es[quadrant]
-
-    return data[data[field].apply(lambda x: x[1] > quad_rad_s and x[1] <= quad_rad_e)]
-
-
-data_quadrants = {
-    q: get_quadrant_ids(data_c, q, "emomusic-msd-musicnn-2---av-polar-norm")
-    for q in ("A+V+", "A-V+", "A+V-", "A-V-")
-}
-
-for q, yids in data_quadrants.items():
-    st.write(f"{q} has {len(yids)} ids.")
-
-data_out = dict()
-for k, v in data_selected.items():
-    data_out[k] = dict()
-    for k2, v2 in v.items():
-        data_out[k][k2] = list(v2.index)
-
-st.write("## Save resulting list of candidates")
-with open("data/candidates.json", "w") as f:
-    json.dump(data_out, f)
-
-st.write("## ok!")
+with open(data_dir / "clean_tids.json", "w") as f:
+    json.dump(list(tids_clean), f)

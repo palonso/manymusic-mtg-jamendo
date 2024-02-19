@@ -142,7 +142,7 @@ st.write(
 durations = np.array([v["duration"] for v in tracks.values()])
 max_duration = int(np.max(durations) + 0.5)
 
-dur_min, dur_max = st.slider("Minimum duration (seconds)", 0, max_duration, (60, 300))
+dur_min, dur_max = st.slider("Minimum duration (seconds)", 0, max_duration, (180, 420))
 
 tids_short = {tid for tid, values in tracks.items() if values["duration"] < dur_min}
 tids_long = {tid for tid, values in tracks.items() if values["duration"] > dur_max}

@@ -72,9 +72,18 @@ else:
 
 tracks_per_page = 5
 
-if "page" not in st.session_state:
+if "choice_1" not in st.session_state:
+    st.session_state.choice_1 = choice_1
+    st.session_state.choice_2 = choice_2
     st.session_state.page = 0
     st.session_state.n_pages = math.ceil(len(ids) / tracks_per_page)
+
+if st.session_state.choice_1 != choice_1 or st.session_state.choice_2 != choice_2:
+    st.session_state.page = 0
+    st.session_state.n_pages = math.ceil(len(ids) / tracks_per_page)
+
+    st.session_state.choice_1 = choice_1
+    st.session_state.choice_2 = choice_2
 
 
 def next_page():

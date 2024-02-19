@@ -473,7 +473,7 @@ for genre in list(genres_good):
 
 tids_subset = set()
 tid2source = dict()
-for data_genre in data_selected.values():
+for genre, data_genre in data_selected.items():
     for subset_name, subset_data in data_genre.items():
         tids_subset.update(subset_data.index)
         for tid in subset_data.index:

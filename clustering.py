@@ -1,6 +1,7 @@
 import cmath
 import json
 import sys
+from argparse import ArgumentParser
 from pathlib import Path
 
 import pandas as pd
@@ -15,38 +16,7 @@ from scipy.ndimage import gaussian_filter1d
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
 
-quad_rad_ss = {"A+V+": 0, "A-V+": -np.pi / 2, "A+V-": np.pi / 2, "A-V-": -np.pi}
-quad_rad_es = {"A+V+": np.pi / 2, "A-V+": 0, "A+V-": np.pi, "A-V-": -np.pi / 2}
 
-
-def get_quadrant_ids(data, quadrant, field):
-    quad_rad_s = quad_rad_ss[quadrant]
-    quad_rad_e = quad_rad_es[quadrant]
-
-    return data[data[field].apply(lambda x: x[1] > quad_rad_s and x[1] <= quad_rad_e)]
-
-
-data_dir = Path("data/")
-av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
-
-genre_threshold = 0.1
-n_samples_per_genre = 200
-smoothing_sigma = 5
-
-av_model = "emomusic"
-
-# Load ids
-with open(data_dir / "clean_tids.json", "r") as f:
-    tids_clean = set(json.load(f))
-
-
-results_dir = (
-    data_dir
-    / f"clustering_genre_thres_{genre_threshold}_n_samples_{n_samples_per_genre}_smoothing_{smoothing_sigma}"
-)
-
-
-# Load data
 def load_data():
     """Load and prepare ground truth in the streamlit cache."""
 
@@ -64,18 +34,18 @@ def load_data():
     return data, tracks
 
 
-data, tracks = load_data()
+def get_quadrant_ids(data, quadrant, field):
+    """Get the ids of the samples in the specified quadrant."""
 
-# Normalize AV
-data[f"{av_model}-msd-musicnn-2---valence-norm"] = (
-    data[f"{av_model}-msd-musicnn-2---valence"] - 5
-) / 4
-data[f"{av_model}-msd-musicnn-2---arousal-norm"] = (
-    data[f"{av_model}-msd-musicnn-2---arousal"] - 5
-) / 4
+    quad_rad_ss = {"A+V+": 0, "A-V+": -np.pi / 2, "A+V-": np.pi / 2, "A-V-": -np.pi}
+    quad_rad_es = {"A+V+": np.pi / 2, "A-V+": 0, "A+V-": np.pi, "A-V-": -np.pi / 2}
+
+    quad_rad_s = quad_rad_ss[quadrant]
+    quad_rad_e = quad_rad_es[quadrant]
+
+    return data[data[field].apply(lambda x: x[1] > quad_rad_s and x[1] <= quad_rad_e)]
 
 
-# Load AV timewise data
 def load_av_time_data():
     """Load and prepare time-wise arousal and valence data in the streamlit cache."""
     data_av_time = dict()
@@ -94,6 +64,7 @@ def load_av_time_data():
 
 
 def plot_av(tid: int, axvline_loc: float = None, data: np.array = None):
+    """Plot the arousal and valence curves for a given track id."""
     if data is None:
         sample = data_av_smooth[tid]
     else:
@@ -119,13 +90,50 @@ def plot_av(tid: int, axvline_loc: float = None, data: np.array = None):
     plt.close()
 
 
-data_av_clean, tids_clean = load_av_time_data()
-print(f"Kept {len(data_av_clean)} samples")
-
-
 def smooth_data(data: dict, sigma: int):
+    """Smooth data using a gaussian filter."""
     return {k: gaussian_filter1d(sample, sigma, axis=0) for k, sample in data.items()}
 
+
+parser = ArgumentParser()
+parser.add_argument("--genre-threshold", type=float, default=0.1)
+parser.add_argument("--n-samples-per-genre", type=int, default=200)
+parser.add_argument("--smoothing-sigma", type=int, default=5)
+parser.add_argument("--av-model", type=str, default="emomusic")
+args = parser.parse_args()
+
+genre_threshold = args.genre_threshold
+n_samples_per_genre = args.n_samples_per_genre
+smoothing_sigma = args.smoothing_sigma
+av_model = args.av_model
+
+
+data_dir = Path("data/")
+av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
+results_dir = (
+    data_dir
+    / f"clustering_genre_thres_{genre_threshold}_n_samples_{n_samples_per_genre}_smoothing_{smoothing_sigma}"
+)
+
+# Load ids
+with open(data_dir / "clean_tids.json", "r") as f:
+    tids_clean = set(json.load(f))
+
+
+# Load data
+data, tracks = load_data()
+
+# Normalize AV
+data[f"{av_model}-msd-musicnn-2---valence-norm"] = (
+    data[f"{av_model}-msd-musicnn-2---valence"] - 5
+) / 4
+data[f"{av_model}-msd-musicnn-2---arousal-norm"] = (
+    data[f"{av_model}-msd-musicnn-2---arousal"] - 5
+) / 4
+
+# Load AV timewise data
+data_av_clean, tids_clean = load_av_time_data()
+print(f"Kept {len(data_av_clean)} samples")
 
 data_av_smooth = smooth_data(data_av_clean, smoothing_sigma)
 

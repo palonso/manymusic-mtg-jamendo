@@ -1,15 +1,19 @@
 import json
 import math
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from matplotlib.image import imread
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
 
 data_dir = Path("data/")
+
+tracks_per_page = 5
 
 
 @st.cache_data
@@ -46,6 +50,16 @@ def play(tid: str):
     st.audio(jamendo_url, format="audio/mp3", start_time=0)
 
 
+def get_top_tags(tids: list, n_most_common: int = 5):
+    """Get the top tags for a list of tids."""
+    tags = []
+    for tid in tids:
+        track = tracks[tid]
+        tags += [t.split("---")[1] for t in track["tags"]]
+
+    return Counter(tags).most_common(n_most_common)
+
+
 data, tracks = load_data()
 tids_init = set(tracks.keys())
 tids_clean = tids_init
@@ -54,23 +68,37 @@ st.write("## Loading  list of candidates")
 with open("data/candidates.json", "r") as f:
     data = json.load(f)
 
+# Count tracks
+n_tracks = 0
+genres_with_clusters = []
+for k, v in data.items():
+    if len(v) > 1:
+        genres_with_clusters.append(k)
+    for k2, v2 in v.items():
+        n_tracks += len(v2)
 
-choices_1 = ["arousal", "valence", "genres"]
-choice_1 = st.selectbox("Select a cluster", choices_1)
+st.write(f"Loaded `{n_tracks}` tracks")
+st.write(f"Genres with multiple clusters: {'; '.join(genres_with_clusters)}")
 
+choices_1 = data.keys()
+choice_1 = st.selectbox("Select a genre", choices_1)
 
-if choice_1 in ("arousal", "valence"):
-    choices_2 = data[choice_1].keys()
-    choice_2 = st.selectbox("Select a sub-cluster", choices_2)
-    ids = data[choice_1][choice_2]
-elif choice_1 == "genres":
-    choices_2 = set(data.keys()) - set(["arousal", "valence"])
-    choice_2 = st.selectbox("Select a sub-cluster", choices_2)
-    ids = data[choice_2]
-else:
-    raise NotImplementedError("choose arousal, valence or genres")
+data_genre = data[choice_1]
 
-tracks_per_page = 5
+choices_2 = data_genre.keys()
+choice_2 = st.selectbox("Select a type of data", choices_2)
+
+ids = data_genre[choice_2]
+
+cluster_params = "clustering_genre_thres_0.1_n_samples_200_smoothing_5"
+cluster_img_file = data_dir / cluster_params / f"{choice_1}_av_scatter.png"
+if cluster_img_file.exists():
+    cluster_img = imread(cluster_img_file)
+    st.image(cluster_img, use_column_width=True)
+
+st.write(f"`{len(ids)}` tracks on this cluster. Most common tags:")
+st.dataframe(get_top_tags(ids))
+
 
 if "choice_1" not in st.session_state:
     st.session_state.choice_1 = choice_1
@@ -105,10 +133,10 @@ col2.button("Next page ➡️", on_click=next_page)
 col1.button("⬅️  Previous page", on_click=prev_page)
 
 ids_show = ids[
-    st.session_state.page
-    * tracks_per_page : (st.session_state.page + 1)
+    st.session_state.page * tracks_per_page : (st.session_state.page + 1)
     * tracks_per_page
 ]
+
 
 for id in ids_show:
     play(id)

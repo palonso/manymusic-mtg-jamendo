@@ -233,7 +233,7 @@ for genre in list(genres_good):
                 clust_sample_tids
             ]
 
-            data_genre.loc[clust_sample_tids, "source"] = f"C{i_cluster}"
+            data_genre.loc[clust_sample_tids, "source"] = f"av_cluster_{i_cluster}"
 
             ax.annotate(
                 f"C{i_cluster}", (cluster_centroid_mean[0], cluster_centroid_mean[1])

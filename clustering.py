@@ -2,6 +2,7 @@ import cmath
 import json
 import sys
 from argparse import ArgumentParser
+from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
@@ -154,6 +155,33 @@ for genre in list(genres_good):
     # Getting top activations for this genre
     data_genre = data_genres[data_genres[genre] > genre_threshold].copy()
     data_genre["source"] = "Not assigned"
+
+    tids = list(data_genre.index)
+
+    if len(tids) < n_samples_per_genre:
+        print(f"Genre {genre} has {len(tids)} samples, using all of them.")
+    else:
+        for max_tracks_per_album in range(1, 10):
+            print(f"Keeping {max_tracks_per_album} samples per album for genre {genre}")
+
+            albums_dict = defaultdict(int)
+            tids_album_duplicated = set()
+
+            for tid in tids:
+                album = tracks[tid]["album_id"]
+                if albums_dict[album] >= max_tracks_per_album:
+                    tids_album_duplicated.add(tid)
+                albums_dict[album] += 1
+
+            tids_clean = set(tids) - tids_album_duplicated
+
+            if len(tids_clean) >= n_samples_per_genre:
+                print(
+                    f" {len(tids_clean)} samples, {max_tracks_per_album} tracks per album, enough."
+                )
+                break
+
+        data_genre = data_genre.loc[list(tids_clean)]
 
     # Get AV data
     v_norm_field = f"{av_model}-msd-musicnn-2---valence-norm"

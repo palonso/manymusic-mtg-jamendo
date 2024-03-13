@@ -4,3 +4,5 @@ pandas
 matplotlib
 seaborn
 streamlit
+sklearn
+tslearn

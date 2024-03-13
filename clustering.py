@@ -11,11 +11,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tslearn.utils import to_time_series_dataset
 from tslearn.clustering import TimeSeriesKMeans
+from sklearn.metrics import silhouette_score
 
 from utils import load_av_time_data, smooth_data, decimate_data
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
+
+
+n_cluster_choices = [3, 5, 10]
 
 
 def load_data():
@@ -173,24 +177,62 @@ for genre in list(genres_good):
         tids_av_genre = list(data_av_genre.keys())
         data_av_genre_ts = to_time_series_dataset(list(data_av_genre.values()))
 
-        n_clusters = 3
-        n_samples_per_cluster = n_samples_per_genre // n_clusters
+        best_sil_score = 0
+        best_n_clusters = 0
+        best_kmeans = None
+        best_y_distances = None
 
-        print(f"training k-means for {genre} with {len(data_av_genre_ts)} samples")
-        kmeans = TimeSeriesKMeans(
-            n_clusters=n_clusters, metric="dtw", max_iter_barycenter=10
+        for n_clusters in n_cluster_choices:
+            n_samples_per_cluster = n_samples_per_genre // n_clusters
+
+            print(
+                f"training k-means for {genre} with {len(data_av_genre_ts)} samples, and {n_clusters} clusters."
+            )
+            kmeans = TimeSeriesKMeans(
+                n_clusters=n_clusters, metric="dtw", max_iter_barycenter=10
+            )
+            y_distances = kmeans.fit_transform(data_av_genre_ts)
+
+            cluster_labels = kmeans.predict(data_av_genre_ts)
+
+            # compute silhouette score on the time-averaged AV curves
+            # (we have seen that av. values preserve most of the info).
+            data_av_genre_ts_mean = np.array(
+                [v.mean(axis=0) for v in data_av_genre.values()]
+            )
+            print("av. data shape", data_av_genre_ts_mean.shape)
+            sil_score = silhouette_score(data_av_genre_ts_mean, cluster_labels)
+
+            print(
+                f"Silhouette score for {genre} with {n_clusters} clusters: {sil_score:.4f}"
+            )
+
+            if sil_score > best_sil_score:
+                best_n_clusters = n_clusters
+                best_sil_score = sil_score
+                best_kmeans = kmeans
+                best_y_distances = y_distances
+
+            else:
+                print("Silhouette score is not better than the best one, stopping.")
+                print("Best silhouette score:", best_sil_score)
+                print("Best number of clusters:", best_n_clusters)
+                break
+
+        np.save(
+            results_dir / f"kmeans_centers_{genre}.npy",
+            best_kmeans.cluster_centers_,
         )
-        y_distances = kmeans.fit_transform(data_av_genre_ts)
 
-        np.save(results_dir / f"kmeans_centers_{genre}.npy", kmeans.cluster_centers_)
+        n_samples_per_cluster = n_samples_per_genre // best_n_clusters
 
-        sorting = np.argsort(y_distances, axis=0)
+        sorting = np.argsort(best_y_distances, axis=0)
         indices = sorting[:n_samples_per_cluster, :]
 
         fig, ax = plt.subplots()
 
-        for i_cluster in range(n_clusters):
-            cluster_centroid = kmeans.cluster_centers_[i_cluster]
+        for i_cluster in range(best_n_clusters):
+            cluster_centroid = best_kmeans.cluster_centers_[i_cluster]
             cluster_centroid_mean = np.mean(cluster_centroid, axis=0)
 
             # plot_av(None, data=cluster_centroid)
@@ -203,19 +245,20 @@ for genre in list(genres_good):
             data_genre.loc[clust_sample_tids, "source"] = f"av_cluster_{i_cluster}"
 
             ax.annotate(
-                f"C{i_cluster}", (cluster_centroid_mean[0], cluster_centroid_mean[1])
+                f"C{i_cluster}",
+                (cluster_centroid_mean[0], cluster_centroid_mean[1]),
             )
 
-        sns.scatterplot(
-            data=data_genre, x=v_norm_field, y=a_norm_field, hue="source"
-        ).set_title(genre)
+            sns.scatterplot(
+                data=data_genre, x=v_norm_field, y=a_norm_field, hue="source"
+            ).set_title(genre)
 
-        plt.axvline(0, color="k")
-        plt.axhline(0, color="k")
+            plt.axvline(0, color="k")
+            plt.axhline(0, color="k")
 
-        results_dir.mkdir(parents=True, exist_ok=True)
-        plt.savefig(results_dir / f"{genre}_av_scatter.png")
-        plt.close(fig)
+            results_dir.mkdir(parents=True, exist_ok=True)
+            plt.savefig(results_dir / f"{genre}_av_scatter.png")
+            plt.close(fig)
 
     p_norm_field = "emomusic-msd-musicnn-2---av-polar-norm"
     data_genre[p_norm_field] = [

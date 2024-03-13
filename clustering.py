@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tslearn.utils import to_time_series_dataset
 from tslearn.clustering import TimeSeriesKMeans
-from matplotlib.dates import DateFormatter
-from scipy.ndimage import gaussian_filter1d
+
+from utils import load_av_time_data, smooth_data, decimate_data
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
@@ -47,74 +47,34 @@ def get_quadrant_ids(data, quadrant, field):
     return data[data[field].apply(lambda x: x[1] > quad_rad_s and x[1] <= quad_rad_e)]
 
 
-def load_av_time_data():
-    """Load and prepare time-wise arousal and valence data in the streamlit cache."""
-    data_av_time = dict()
-    tids_clean_list = list(tids_clean)
-    for index in tids_clean_list:
-        try:
-            av_filename = (av_predictions_dir / tracks[index]["path"]).with_suffix(
-                ".npy"
-            )
-            # load and normalize
-            data_av_time[index] = (np.load(av_filename) - 5) / 4
-        except Exception:
-            pass
-
-    return data_av_time, set(tids_clean_list)
-
-
-def plot_av(tid: int, axvline_loc: float = None, data: np.array = None):
-    """Plot the arousal and valence curves for a given track id."""
-    if data is None:
-        sample = data_av_smooth[tid]
-    else:
-        sample = data
-
-    formatter = DateFormatter("%M'%S''")
-
-    emb2days = 63 * 256 / (16000 * 3600 * 24)
-    time = np.linspace(0, len(sample) * emb2days, len(sample))
-
-    fig, ax = plt.subplots()
-    ax.plot(time, sample[:, 0], label="valence")
-    ax.plot(time, sample[:, 1], label="arousal")
-    ax.xaxis.set_major_formatter(formatter)
-
-    if axvline_loc is not None:
-        axvline_loc *= emb2days
-        label = f"location: {formatter(axvline_loc)}"
-        plt.axvline(axvline_loc, color="k", label=label)
-
-    ax.legend()
-    fig.tight_layout()
-    plt.close()
-
-
-def smooth_data(data: dict, sigma: int):
-    """Smooth data using a gaussian filter."""
-    return {k: gaussian_filter1d(sample, sigma, axis=0) for k, sample in data.items()}
-
-
 parser = ArgumentParser()
 parser.add_argument("--genre-threshold", type=float, default=0.1)
 parser.add_argument("--n-samples-per-genre", type=int, default=200)
 parser.add_argument("--smoothing-sigma", type=int, default=5)
+parser.add_argument("--decimate-factor", type=int, default=5)
 parser.add_argument("--av-model", type=str, default="emomusic")
+parser.add_argument(
+    "--norm", type=str, default="none", choices=["none", "minmax", "zscore"]
+)
 args = parser.parse_args()
 
 genre_threshold = args.genre_threshold
 n_samples_per_genre = args.n_samples_per_genre
 smoothing_sigma = args.smoothing_sigma
+decimate_factor = args.decimate_factor
 av_model = args.av_model
+norm_type = args.norm
 
 
 data_dir = Path("data/")
 av_predictions_dir = data_dir / "predictions" / "emomusic-msd-musicnn-2"
 results_dir = (
     data_dir
-    / f"clustering_genre_thres_{genre_threshold}_n_samples_{n_samples_per_genre}_smoothing_{smoothing_sigma}"
+    / "clustering"
+    / f"clustering_genre_thres_{genre_threshold}_n_samples_{n_samples_per_genre}_smoothing_{smoothing_sigma}_decimate_{decimate_factor}_norm_{norm_type}"
 )
+
+results_dir.mkdir(parents=True, exist_ok=True)
 
 # Load ids
 with open(data_dir / "clean_tids.json", "r") as f:
@@ -133,10 +93,12 @@ data[f"{av_model}-msd-musicnn-2---arousal-norm"] = (
 ) / 4
 
 # Load AV timewise data
-data_av_clean, tids_clean = load_av_time_data()
+data_av_clean, tids_clean = load_av_time_data(tids_clean, tracks)
 print(f"Kept {len(data_av_clean)} samples")
 
 data_av_smooth = smooth_data(data_av_clean, smoothing_sigma)
+
+data_av_decimated = decimate_data(data_av_smooth, decimate_factor)
 
 
 data_styles = data.filter(like="genre_discogs400-discogs-effnet-1")
@@ -201,8 +163,13 @@ for genre in list(genres_good):
     else:
         # get prototypical av curves for this genre
         data_av_genre = {
-            k: v for k, v in data_av_smooth.items() if k in data_genre.index
+            k: v for k, v in data_av_decimated.items() if k in data_genre.index
         }
+        if norm_type == "zscore":
+            data_av_genre = {
+                k: (v - v.mean(axis=0)) / v.std(axis=0)
+                for k, v in data_av_genre.items()
+            }
         tids_av_genre = list(data_av_genre.keys())
         data_av_genre_ts = to_time_series_dataset(list(data_av_genre.values()))
 
@@ -274,7 +241,7 @@ for k, v in data_selected.items():
         data_out[k][k2] = list(v2.index)
 
 print("Save resulting list of candidates")
-with open("data/candidates.json", "w") as f:
+with open(results_dir / "candidates.json", "w") as f:
     json.dump(data_out, f)
 
 print("done!")

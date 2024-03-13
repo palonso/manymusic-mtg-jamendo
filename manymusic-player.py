@@ -3,6 +3,7 @@ import math
 import sys
 from collections import Counter
 from pathlib import Path
+from glob import glob
 
 import numpy as np
 import pandas as pd
@@ -51,12 +52,15 @@ data, tracks = load_data()
 tids_init = set(tracks.keys())
 tids_clean = tids_init
 
-cluster_params = (
-    "clustering_genre_thres_0.1_n_samples_200_smoothing_5_decimate_5_norm_none"
-)
+
+param_choices = glob("data/clustering/*")
+param_choices = [p.split("/")[-1] for p in param_choices]
+cluster_params = st.selectbox("Select a set of parameters", param_choices)
+
+clustering_data_dir = Path("data", "clustering", cluster_params)
 
 st.write("## Loading list of candidates")
-with open(f"data/{cluster_params}/candidates.json", "r") as f:
+with open(clustering_data_dir / "candidates.json", "r") as f:
     data = json.load(f)
 
 data_av_clean, tids_clean = load_av_time_data(tids_clean, tracks)
@@ -93,10 +97,11 @@ if cluster_img_file.exists():
 
 st.write(f"### Cluster `{choice_2}` kernel:")
 
-cluster_data_file = data_dir / cluster_params / f"kmeans_centers_{choice_1}.npy"
-cluster_data = np.load(cluster_data_file)
-cluster_idx = int(choice_2.split("_")[-1])
-plot_av(cluster_data[cluster_idx])
+cluster_data_file = clustering_data_dir / f"kmeans_centers_{choice_1}.npy"
+if cluster_data_file.exists():
+    cluster_data = np.load(cluster_data_file)
+    cluster_idx = int(choice_2.split("_")[-1])
+    plot_av(cluster_data[cluster_idx])
 
 
 st.write(f"`{len(ids)}` tracks on this cluster. Most common tags:")

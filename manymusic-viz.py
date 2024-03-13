@@ -330,38 +330,38 @@ for tid in random.sample(list(blacklist_tids), example_size):
 #     play(tid)
 
 
-st.write(
-    """
-    ## 9. Keep one track per album
-    """
-)
+# st.write(
+#     """
+#     ## 9. Keep one track per album
+#     """
+# )
 
-albums_set = set()
-albums_list = list()
-tids_album_duplicated = set()
-for tid in tids_clean:
-    album = tracks[tid]["album_id"]
-    if album in albums_set:
-        tids_album_duplicated.add(tid)
-    albums_set.add(album)
-    albums_list.append(album)
+# albums_dict = defaultdict(int)
+# albums_list = list()
+# tids_album_duplicated = set()
+# for tid in tids_clean:
+#     album = tracks[tid]["album_id"]
+#     if albums_dict[album] >= max_tracks_per_album:
+#         tids_album_duplicated.add(tid)
+#     albums_dict[album] += 1
+#     albums_list.append(album)
 
-tids_clean -= tids_album_duplicated
-albums_counter = Counter(albums_list)
+# tids_clean -= tids_album_duplicated
+# albums_counter = Counter(albums_list)
 
-top_albums = albums_counter.most_common(10)
+# top_albums = albums_counter.most_common(10)
 
 
-st.write(
-    f"""
-    tracks belonging to the same album: {len(tids_album_duplicated)}
+# st.write(
+#     f"""
+#     tracks belonging to the same album: {len(tids_album_duplicated)}
 
-    remaining tracks: {len(tids_clean)}
+#     remaining tracks: {len(tids_clean)}
 
-    Top 10 albums with more tracks:
-    {top_albums}
-    """
-)
+#     Top 10 albums with more tracks:
+#     {top_albums}
+#     """
+# )
 
 
 data_styles = data.filter(like="genre_discogs400-discogs-effnet-1")

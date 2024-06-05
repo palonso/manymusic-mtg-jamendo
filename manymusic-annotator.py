@@ -1,16 +1,21 @@
+import json
 import sys
-import streamlit as st
 import uuid
-from collections import Counter
-from utils import play
+from pathlib import Path
+from datetime import datetime
+
+import streamlit as st
 import streamlit.components.v1 as components
+import pandas as pd
+
+from utils import play
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
 
 
 def generate_uuid():
-    st.session_state.user_uuid = uuid.uuid4()
+    st.session_state.user_uuid = str(uuid.uuid4())
 
 
 @st.cache_data
@@ -22,17 +27,89 @@ def load_data():
     return tracks
 
 
-def get_top_tags(tids: list, n_most_common: int = 5):
-    """Get the top tags for a list of tids."""
-    tags = []
-    for tid in tids:
-        track = tracks[tid]
-        tags += [t.split("---")[1] for t in track["tags"]]
+@st.cache_resource
+def init():
+    # Load ground truth data
+    tracks = load_data()
 
-    return Counter(tags).most_common(n_most_common)
+    preselection_data = pd.read_csv(preselection_data_file, sep="\t")
+    chunks = preselection_data["chunk_id"].unique()
+
+    return tracks, preselection_data, chunks
 
 
-def next_track(answer: str):
+@st.cache_resource(max_entries=1)
+def retrieve_user_data(
+    user_data_file: Path,
+    preselection_data: pd.DataFrame,
+    chunk_id: str,
+) -> dict:
+    """Retrieve user data from a file."""
+
+    print(f"Retrieving user data, for chunk {chunk_id}.")
+
+    # Get the tids for the selected chunk
+    tids = list(
+        preselection_data[preselection_data["chunk_id"] == int(chunk_id)]["tid"]
+    )
+
+    # Create a new annotation session
+    new_session = {
+        "start": datetime.now().isoformat(),
+        "end": datetime.now().isoformat(),
+        "chunk": chunk_id,
+    }
+
+    # Load user data
+    if user_data_file.exists():
+        with open(user_data_file, "r") as f:
+            user_data = json.load(f)
+
+        user_data["sessions"].append(new_session)
+    # Initialise chunk dictionary otherwise
+    else:
+        user_data = {
+            "annotations": dict(),
+            "sessions": [new_session],
+        }
+
+    if chunk_id not in user_data["annotations"]:
+        user_data["annotations"][chunk_id] = {k: "n/a" for k in tids}
+
+    # Set the tid index
+    tid_idx = 0
+    if chunk_id in user_data["annotations"]:
+        tid_idx = count_annotations(user_data["annotations"][chunk_id])
+
+    if tid_idx > 0:
+        st.write(f" Resuming annotation of chunk `{chunk_id}` at track `{tid_idx}`")
+
+    st.session_state.tid_idx = tid_idx
+
+    return user_data
+
+
+def count_annotations(chunk_data: dict):
+    """Count the number of annotations per chunk."""
+    i = 0
+    for v in chunk_data.values():
+        if v != "n/a":
+            i += 1
+        else:
+            return i
+
+
+def next_track(
+    chunk_id: str,
+    answer: str,
+    tid: str,
+):
+    """Move to the next track."""
+
+    user_data["annotations"][chunk_id][tid] = answer
+
+    save_user_data(user_data, user_data_file)
+
     st.session_state.tid_idx += 1
 
     if answer == "all_good":
@@ -51,11 +128,18 @@ def next_track(answer: str):
         raise ValueError("Invalid answer.")
 
 
-if "user_uuid" not in st.session_state:
-    st.session_state.user_uuid = None
+def save_user_data(user_data, user_data_file):
+    """Save user data to a file."""
 
-if "tid_idx" not in st.session_state:
-    st.session_state.tid_idx = 0
+    # update the end timestamp
+    user_data["sessions"][-1]["end"] = datetime.now().isoformat()
+
+    if not user_data_file.parent.exists():
+        user_data_file.parent.mkdir(parents=True)
+
+    with open(user_data_file, "w") as f:
+        json.dump(user_data, f)
+
 
 choices = {
     "all_good": "✅ all good! (a)",
@@ -65,50 +149,66 @@ choices = {
 }
 choices_keys = list(choices.keys())
 
+preselection_data_file = Path("data", "preselection.tsv.2")
 
-st.write(
-    """
-    Insert UUID or genere a new one
-    """
-)
 
-user_uuid = st.text_input("User UUID")
+# Generate or restore the UUID
+if "user_uuid" not in st.session_state:
+    st.session_state.user_uuid = None
+
+if "tid_idx" not in st.session_state:
+    st.session_state.tid_idx = 0
+
+user_uuid = st.text_input("Insert an exisitng UUID ir create a new one.")
 
 if user_uuid:
     st.session_state.user_uuid = user_uuid
 
-
-st.button("Generate UUID", on_click=generate_uuid)
+st.button("Create UUID", on_click=generate_uuid)
 
 if not st.session_state.user_uuid:
-    st.write("Generate a user UUID or insert an existing one.")
+    st.write("Generate a user UUID or insert an existing one to continue.")
 else:
     st.write(
-        f"""User UUID: `{st.session_state.user_uuid}`. 
+        f"""User UUID: `{st.session_state.user_uuid}`
 
-        Save it for future reference.
+        Save your UUID to restore the annotation process latter.
         """
     )
 
-    st.write("Annotate this song")
+    # main program
+    user_data_file = Path("annotations", st.session_state.user_uuid, "annotations.json")
+    tracks, preselection_data, chunks = init()
 
-    tracks = load_data()
-    tids = list(tracks.keys())
+    chunk_id = st.selectbox("Select a chunk to annotate", chunks)
+    chunk_id = str(chunk_id)
 
-    tid = tids[st.session_state.tid_idx]
+    # load user data
+    user_data = retrieve_user_data(user_data_file, preselection_data, chunk_id)
+
+    tids = list(user_data["annotations"][chunk_id].keys())
+    st.write(f"Track `{st.session_state.tid_idx}/{len(tids)}`")
+
+    if st.session_state.tid_idx >= len(tids):
+        st.write(f"Chunk {chunk_id} completed.")
+        st.stop()
+
+    tid = int(tids[st.session_state.tid_idx])
 
     play(tid, tracks)
 
     cols = st.columns(len(choices))
     for i, col in enumerate(cols):
-        key = choices_keys[i]
-        text = choices[key]
+        answer = choices_keys[i]
+        text = choices[answer]
 
         col.button(
             text,
             on_click=next_track,
-            args=[key],
+            args=[chunk_id, answer, tid],
         )
+
+    save_user_data(user_data, user_data_file)
 
 
 # Add keyboard shortcuts with JS

@@ -13,7 +13,7 @@ from tslearn.utils import to_time_series_dataset
 from tslearn.clustering import TimeSeriesKMeans
 from sklearn.metrics import silhouette_score
 
-from utils import load_av_time_data, smooth_data, decimate_data
+from utils import load_av_time_data, smooth_data, decimate_data, normalize_string
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
@@ -60,6 +60,7 @@ parser.add_argument("--av-model", type=str, default="emomusic")
 parser.add_argument(
     "--norm", type=str, default="none", choices=["none", "minmax", "zscore"]
 )
+parser.add_argument("--force", action="store_true")
 args = parser.parse_args()
 
 genre_threshold = args.genre_threshold
@@ -68,6 +69,7 @@ smoothing_sigma = args.smoothing_sigma
 decimate_factor = args.decimate_factor
 av_model = args.av_model
 norm_type = args.norm
+force = args.force
 
 
 data_dir = Path("data/")
@@ -116,6 +118,13 @@ genres_good = genres - genres_blacklist
 
 data_selected = dict()
 for genre in list(genres_good):
+    genre_n = normalize_string(genre)
+    results_file = results_dir / f"kmeans_centers_{genre_n}.npy"
+
+    if results_file.exists() and not force:
+        print(f"Skipping genre {genre}, already processed.")
+        continue
+
     data_selected[genre] = dict()
 
     # Getting top activations for this genre
@@ -175,9 +184,10 @@ for genre in list(genres_good):
                 for k, v in data_av_genre.items()
             }
         tids_av_genre = list(data_av_genre.keys())
+
         data_av_genre_ts = to_time_series_dataset(list(data_av_genre.values()))
 
-        best_sil_score = 0
+        best_sil_score = -np.inf
         best_n_clusters = 0
         best_kmeans = None
         best_y_distances = None
@@ -220,7 +230,7 @@ for genre in list(genres_good):
                 break
 
         np.save(
-            results_dir / f"kmeans_centers_{genre}.npy",
+            results_file,
             best_kmeans.cluster_centers_,
         )
 
@@ -235,8 +245,6 @@ for genre in list(genres_good):
             cluster_centroid = best_kmeans.cluster_centers_[i_cluster]
             cluster_centroid_mean = np.mean(cluster_centroid, axis=0)
 
-            # plot_av(None, data=cluster_centroid)
-
             clust_sample_tids = [tids_av_genre[i] for i in indices[:, i_cluster]]
             data_selected[genre][f"av_cluster_{i_cluster}"] = data_genre.loc[
                 clust_sample_tids
@@ -244,21 +252,25 @@ for genre in list(genres_good):
 
             data_genre.loc[clust_sample_tids, "source"] = f"av_cluster_{i_cluster}"
 
+            # sort byt soruce column
+            data_genre.sort_values("source", inplace=True)
+
             ax.annotate(
                 f"C{i_cluster}",
                 (cluster_centroid_mean[0], cluster_centroid_mean[1]),
             )
 
-            sns.scatterplot(
-                data=data_genre, x=v_norm_field, y=a_norm_field, hue="source"
-            ).set_title(genre)
+        sns.scatterplot(
+            data=data_genre, x=v_norm_field, y=a_norm_field, hue="source"
+        ).set_title(genre)
 
-            plt.axvline(0, color="k")
-            plt.axhline(0, color="k")
+        plt.axvline(0, color="k")
+        plt.axhline(0, color="k")
 
-            results_dir.mkdir(parents=True, exist_ok=True)
-            plt.savefig(results_dir / f"{genre}_av_scatter.png")
-            plt.close(fig)
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        plt.savefig(results_dir / f"{genre_n}_av_scatter.png")
+        plt.close(fig)
 
     p_norm_field = "emomusic-msd-musicnn-2---av-polar-norm"
     data_genre[p_norm_field] = [
@@ -276,8 +288,13 @@ for genre in list(genres_good):
     for q, yids in data_quadrants.items():
         print(f"{q} has {len(yids)} ids.")
 
+results_file = results_dir / "candidates.json"
+if results_file.exists():
+    with open(results_file, "r") as f:
+        data_out = json.load(f)
+else:
+    data_out = dict()
 
-data_out = dict()
 for k, v in data_selected.items():
     data_out[k] = dict()
     for k2, v2 in v.items():

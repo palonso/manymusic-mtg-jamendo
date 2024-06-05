@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from matplotlib.dates import DateFormatter
+import re
 
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import decimate
@@ -90,3 +90,9 @@ def plot_av(
     plt.ylim(-1, 1)
     st.pyplot(fig)
     plt.close()
+
+
+def normalize_string(s: str) -> str:
+    """Normalize a string for search purposes."""
+
+    return re.sub("[^A-Za-z0-9]+", "_", s)

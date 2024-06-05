@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 from matplotlib.image import imread
 
-from utils import load_av_time_data, smooth_data, plot_av, play
+from utils import load_av_time_data, smooth_data, plot_av, play, normalize_string
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
@@ -48,7 +48,7 @@ def get_top_tags(tids: list, n_most_common: int = 5):
     return Counter(tags).most_common(n_most_common)
 
 
-data, tracks = load_data()
+_, tracks = load_data()
 tids_init = set(tracks.keys())
 tids_clean = tids_init
 
@@ -85,19 +85,20 @@ choice_1 = st.selectbox("Select a genre", choices_1)
 
 data_genre = data[choice_1]
 
+genre_n = normalize_string(choice_1)
+
+cluster_img_file = clustering_data_dir / f"{genre_n}_av_scatter.png"
+cluster_img = imread(cluster_img_file)
+st.image(cluster_img, use_column_width=True)
+
 choices_2 = data_genre.keys()
 choice_2 = st.selectbox("Select a type of data", choices_2)
 
 ids = data_genre[choice_2]
 
-cluster_img_file = data_dir / cluster_params / f"{choice_1}_av_scatter.png"
-if cluster_img_file.exists():
-    cluster_img = imread(cluster_img_file)
-    st.image(cluster_img, use_column_width=True)
-
 st.write(f"### Cluster `{choice_2}` kernel:")
 
-cluster_data_file = clustering_data_dir / f"kmeans_centers_{choice_1}.npy"
+cluster_data_file = clustering_data_dir / f"kmeans_centers_{genre_n}.npy"
 if cluster_data_file.exists():
     cluster_data = np.load(cluster_data_file)
     cluster_idx = int(choice_2.split("_")[-1])

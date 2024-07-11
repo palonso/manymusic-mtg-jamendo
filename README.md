@@ -8,10 +8,10 @@ Streamlit app to create subsets of The MTG Jamendo dataset
 
 2. Create and activate a virtual env: `python3 -m venv venv && source venv/bin/activate`
 
-3. Install the Python dependencies: `pip install -r requirements.py`
+3. Install the Python dependencies: `pip install -r requirements.txt`
 
 
-## Usarge
+## Generation of the ManyMusic song pre-selectiion
 
 1. Copy the data into `data/`.
 The required files are: `mtg-jamendo-predictions-algos.pk`, `mtg-jamendo-predictions-av.pk`, ` mtg-jamendo-predictions.tsv`, and the timewise `predictions/`.
@@ -23,3 +23,7 @@ The required files are: `mtg-jamendo-predictions-algos.pk`, `mtg-jamendo-predict
 4. Run `clustering.py` to generate a dictionary of tids sampled by applying clustering to the tracks belonging to the different genres. 
 
 5. Run `postprocess.py` to generate a tsv combining several output jsons. Optionally, the resulting dataset can be split into equally sized chunks.
+
+## Annotation of the ManyMusic song pre-selection
+
+1. streamlit 

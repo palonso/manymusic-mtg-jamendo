@@ -20,10 +20,10 @@ The required files are: `mtg-jamendo-predictions-algos.pk`, `mtg-jamendo-predict
 
 3. The streamlit app will generate JSON file `data/clean_tids.json` with the candidate MTG Jamendo ids for the ManyMusic dataset. The resulting ids are randomly sampled from a pool of valid ids created with several filter staged where the threshold can be updated by the user.
 
-4. Run `clustering.py` to generate a dictionary of tids sampled by applying clustering to the tracks belonging to the different genres. 
+4. Run `python clustering.py` to generate a dictionary of tids sampled by applying clustering to the tracks belonging to the different genres. 
 
-5. Run `postprocess.py` to generate a tsv combining several output jsons. Optionally, the resulting dataset can be split into equally sized chunks.
+5. Run `python postprocess.py` to generate a tsv combining several output jsons. Optionally, the resulting dataset can be split into equally sized chunks.
 
 ## Annotation of the ManyMusic song pre-selection
 
-1. streamlit 
+1. `streamlit run manymusic-annotator.py`

@@ -271,3 +271,17 @@ doc.addEventListener('keydown', function(e) {{
     height=0,
     width=0,
 )
+
+
+st.caption(
+    """
+The purpose of this annotation tool is to create a dataset of music suitable to evoke emotional responses.
+Our goal is to identify tracks that are unsuitable for this purpose and should be discarded.
+
+For every track, please select one of the following options:
+- `✅ all good!` The track has the potential to evoke emotions.
+- `🔇 bad quality` The track features audio quality problems that may interfere with the emotional response.
+- `😐 not emotionally conveying` the track is not emotionally conveying (e.g., elevator music, too repetitive, ...)
+- `👎 other reasons` The track should not be included in the dataset for other reasons (contains irony, is attached to a specific event or ceremony, ...)
+"""
+)

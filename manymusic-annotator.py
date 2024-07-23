@@ -114,7 +114,10 @@ def next_track(
             st.write("Going to the previous track")
         return
 
-    user_data["annotations"][chunk_id][tid] = answer
+    user_data["annotations"][chunk_id][tid] = {
+        "answer": answer,
+        "timestamp": str(datetime.now().isoformat()),
+    }
 
     save_user_data(user_data, user_data_file)
 

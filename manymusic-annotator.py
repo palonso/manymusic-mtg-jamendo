@@ -104,7 +104,15 @@ def next_track(
     answer: str,
     tid: str,
 ):
-    """Move to the next track."""
+    """Move to the next or previous track."""
+
+    if answer == "previous":
+        if st.session_state.tid_idx == 0:
+            st.write("This is already the first track!")
+        else:
+            st.session_state.tid_idx -= 1
+            st.write("Going to the previous track")
+        return
 
     user_data["annotations"][chunk_id][tid] = answer
 
@@ -207,6 +215,12 @@ else:
             on_click=next_track,
             args=[chunk_id, answer, tid],
         )
+
+    st.button(
+        "⬅️  previous track",
+        on_click=next_track,
+        args=[chunk_id, "previous", tid],
+    )
 
     save_user_data(user_data, user_data_file)
 

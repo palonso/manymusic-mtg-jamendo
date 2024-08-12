@@ -126,11 +126,17 @@ def next_track(
     if answer == "all_good":
         st.write("All good! Next song.")
 
-    elif answer == "bad_quality":
-        st.write("Bad quality! Next song.")
+    elif answer == "bad_audio":
+        st.write("Bad audio quality! Next song.")
 
     elif answer == "not_emotionally_conveying":
         st.write("Not emotionally conveying! Next song.")
+
+    elif answer == "inappropriate_language":
+        st.write("Inappropriate language! Next song.")
+
+    elif answer == "copyrighted_content":
+        st.write("Copyrighted content detected! Next song.")
 
     elif answer == "other_reasons":
         st.write("Other reasons! Next song.")
@@ -153,10 +159,12 @@ def save_user_data(user_data, user_data_file):
 
 
 choices = {
-    "all_good": "✅ all good! (a)",
-    "bad_quality": "🔇 bad quality (s)",
-    "not_emotionally_conveying": "😐 not emotionally conveying (d)",
-    "other_reasons": "👎 other reasons (f)",
+    "all_good": "✅ all good (a)",
+    "bad_audio": "🔇 bad audio (s)",
+    "not_emotionally_conveying": "😐 not emotional (d)",
+    "inappropriate_language": "🤬 inappropriate language (f)",
+    "copyrighted_content": "©️ copyrighted content (z)",
+    "other_reasons": "👎 other reasons (x)",
 }
 choices_keys = list(choices.keys())
 
@@ -201,8 +209,10 @@ else:
 
     For every track, please select one of the following options:
     - `✅ all good!` The track has the potential to evoke emotions.
-    - `🔇 bad quality` The track features audio quality problems that may interfere with the emotional response.
+    - `🔇 bad audio quality` The track features audio quality problems that may interfere with the emotional response.
     - `😐 not emotionally conveying` the track is not emotionally conveying (e.g., elevator music, too repetitive, ...)
+    - `🤬 inappropriate language` The track contains inappropriate language.
+    - `©️  copyrighted content` The track contains copyrighted content from a recognized track.
     - `👎 other reasons` The track should not be included in the dataset for other reasons (contains irony, is attached to a specific event or ceremony, ...)
     """
     )
@@ -221,16 +231,20 @@ else:
 
     play(tid, tracks)
 
-    cols = st.columns(len(choices))
-    for i, col in enumerate(cols):
-        answer = choices_keys[i]
-        text = choices[answer]
+    n_rows = 2
+    n_cols = len(choices) // n_rows
 
-        col.button(
-            text,
-            on_click=next_track,
-            args=[chunk_id, answer, tid],
-        )
+    for row in range(n_rows):
+        cols = st.columns(n_cols)
+        for i, col in enumerate(cols):
+            answer = choices_keys[i + row * n_cols]
+            text = choices[answer]
+
+            col.button(
+                text,
+                on_click=next_track,
+                args=[chunk_id, answer, tid],
+            )
 
     st.button(
         "⬅️  previous track",
@@ -258,7 +272,7 @@ doc.addEventListener('keydown', function(e) {{
 
         case 83: // (83 = 's' key)
             const button_s = Array.from(doc.querySelectorAll('button'))
-                                .find(btn => btn.innerText === '{choices["bad_quality"]}');
+                                .find(btn => btn.innerText === '{choices["bad_audio"]}');
             if (button_s) {{
                 button_s.click();
             }}
@@ -274,9 +288,25 @@ doc.addEventListener('keydown', function(e) {{
 
         case 70: // (70 = 'f' key)
             const button_f = Array.from(doc.querySelectorAll('button'))
-                                .find(btn => btn.innerText === '{choices["other_reasons"]}');
+                                .find(btn => btn.innerText === '{choices["inappropriate_language"]}');
             if (button_f) {{
                 button_f.click();
+            }}
+            break;
+
+        case 90: // (90 = 'z' key)
+            const button_z = Array.from(doc.querySelectorAll('button'))
+                                .find(btn => btn.innerText === '{choices["copyrighted_content"]}');
+            if (button_z) {{
+                button_z.click();
+            }}
+            break;
+
+        case 88: // (88 = 'x' key)
+            const button_x = Array.from(doc.querySelectorAll('button'))
+                                .find(btn => btn.innerText === '{choices["other_reasons"]}');
+            if (button_x) {{
+                button_x.click();
             }}
             break;
     }}

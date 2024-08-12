@@ -74,7 +74,7 @@ def retrieve_user_data(
         }
 
     if chunk_id not in user_data["annotations"]:
-        user_data["annotations"][chunk_id] = {k: "n/a" for k in tids}
+        user_data["annotations"][chunk_id] = {k: dict() for k in tids}
 
     # Set the tid index
     tid_idx = 0
@@ -93,7 +93,7 @@ def count_annotations(chunk_data: dict):
     """Count the number of annotations per chunk."""
     i = 0
     for v in chunk_data.values():
-        if v != "n/a":
+        if v:
             i += 1
         else:
             return i

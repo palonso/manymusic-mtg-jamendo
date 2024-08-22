@@ -24,18 +24,24 @@ def load_data():
 
     mtg_jamendo_file = "mtg-jamendo-dataset/data/autotagging.tsv"
     tracks, _, _ = commons.read_file(mtg_jamendo_file)
-    return tracks
+
+    feature_file = "data/mtg-jamendo-predictions-algos.pk"
+    features = pd.read_pickle(feature_file)
+
+    return tracks, features
 
 
 @st.cache_resource
 def init():
     # Load ground truth data
-    tracks = load_data()
+    tracks, features = load_data()
 
     preselection_data = pd.read_csv(preselection_data_file, sep="\t")
     chunks = preselection_data["chunk_id"].unique()
 
-    return tracks, preselection_data, chunks
+    features.index = [i.split("/")[1] for i in features.index]
+
+    return tracks, preselection_data, chunks, features
 
 
 @st.cache_resource(max_entries=1)
@@ -197,7 +203,7 @@ else:
 
     # main program
     user_data_file = Path("annotations", st.session_state.user_uuid, "annotations.json")
-    tracks, preselection_data, chunks = init()
+    tracks, preselection_data, chunks, features = init()
 
     chunk_id = st.selectbox("Select a chunk to annotate", chunks)
     chunk_id = str(chunk_id)
@@ -229,7 +235,13 @@ else:
 
     tid = int(tids[st.session_state.tid_idx])
 
-    play(tid, tracks)
+    # get value given index and column name
+    loudness_db = features.loc[str(tid), "integrated_loudness"]
+
+    gain = 10 ** (loudness_db / 20)
+
+    print(f"Playing track {tid} with gain {gain}")
+
     play(tid, tracks, autoplay=True)
 
     n_rows = 2

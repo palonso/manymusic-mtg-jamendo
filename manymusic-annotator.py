@@ -8,7 +8,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 
-from utils import play
+from utils import wavesurfer_play
 
 sys.path.append("mtg-jamendo-dataset/scripts/")
 import commons
@@ -237,12 +237,20 @@ else:
 
     # get value given index and column name
     loudness_db = features.loc[str(tid), "integrated_loudness"]
+    # compute gain reduction to reach target loudness
+    target_loudness = -14
+    trim = target_loudness - loudness_db
 
-    gain = 10 ** (loudness_db / 20)
+    # reduce gain if the track is too loud, otherwise keep it as it is
+    if trim < 0:
+        gain = 10 ** (trim / 20)
+    else:
+        gain = 1.0
 
-    print(f"Playing track {tid} with gain {gain}")
+    print(f"Track {tid} loudness: {loudness_db:.2f} dB, trim: {trim:.2f} dB")
+    print(f"Playing track {tid} with gain {gain:.2f}")
 
-    play(tid, tracks, autoplay=True)
+    wavesurfer_play(tid, tracks, autoplay=True, gain=gain)
 
     n_rows = 2
     n_cols = len(choices) // n_rows

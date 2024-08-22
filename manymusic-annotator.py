@@ -230,6 +230,7 @@ else:
     tid = int(tids[st.session_state.tid_idx])
 
     play(tid, tracks)
+    play(tid, tracks, autoplay=True)
 
     n_rows = 2
     n_cols = len(choices) // n_rows

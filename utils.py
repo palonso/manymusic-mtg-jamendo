@@ -51,7 +51,7 @@ def audio_url(trackid) -> str:
     return f"https://mp3d.jamendo.com/?trackid={trackid}&format=mp32#t=0,120"
 
 
-def play(tid: str, tracks: dict) -> None:
+def play(tid: str, tracks: dict, autoplay: bool = False) -> None:
     """Play a track and print tags from its tid."""
 
     jamendo_url = audio_url(tid)
@@ -60,7 +60,8 @@ def play(tid: str, tracks: dict) -> None:
 
     st.write("---")
     st.write(f"**Track {tid}** - tags: {', '.join(tags)}")
-    st.audio(jamendo_url, format="audio/mp3", start_time=0)
+
+    st.audio(jamendo_url, format="audio/mp3", start_time=0, autoplay=autoplay)
 
 
 def plot_av(

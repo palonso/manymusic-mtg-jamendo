@@ -58,6 +58,7 @@ def retrieve_user_data(
         "start": datetime.now().isoformat(),
         "end": datetime.now().isoformat(),
         "chunk": chunk_id,
+        "uuid": st.session_state.user_uuid,
     }
 
     # Load user data

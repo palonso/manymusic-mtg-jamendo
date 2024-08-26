@@ -132,8 +132,8 @@ def next_track(
     elif answer == "not_emotionally_conveying":
         st.write("Not emotionally conveying! Next song.")
 
-    elif answer == "inappropriate_language":
-        st.write("Inappropriate language! Next song.")
+    elif answer == "explicit_content":
+        st.write("explicit content! Next song.")
 
     elif answer == "copyrighted_content":
         st.write("Copyrighted content detected! Next song.")
@@ -162,7 +162,7 @@ choices = {
     "all_good": "✅ all good (a)",
     "bad_audio": "🔇 bad audio (s)",
     "not_emotionally_conveying": "😐 not emotional (d)",
-    "inappropriate_language": "🤬 inappropriate language (f)",
+    "explicit_content": "🤬 explicit content (f)",
     "copyrighted_content": "©️ copyrighted content (z)",
     "other_reasons": "👎 other reasons (x)",
 }
@@ -211,7 +211,7 @@ else:
     - `✅ all good!` The track has the potential to evoke emotions.
     - `🔇 bad audio quality` The track features audio quality problems that may interfere with the emotional response.
     - `😐 not emotionally conveying` the track is not emotionally conveying (e.g., elevator music, too repetitive, ...)
-    - `🤬 inappropriate language` The track contains inappropriate language.
+    - `🤬 explicit content` The track contains explicit content.
     - `©️  copyrighted content` The track contains copyrighted content from a recognized track.
     - `👎 other reasons` The track should not be included in the dataset for other reasons (contains irony, is attached to a specific event or ceremony, ...)
     """
@@ -288,7 +288,7 @@ doc.addEventListener('keydown', function(e) {{
 
         case 70: // (70 = 'f' key)
             const button_f = Array.from(doc.querySelectorAll('button'))
-                                .find(btn => btn.innerText === '{choices["inappropriate_language"]}');
+                                .find(btn => btn.innerText === '{choices["explicit_content"]}');
             if (button_f) {{
                 button_f.click();
             }}

@@ -116,11 +116,33 @@ def wavesurfer_play(
                 wavesurfer.play();
             }});
 
-            document.addEventListener('keydown', function(event) {{
-                if (event.code === 'Space') {{
-                    event.preventDefault(); // Prevent page scroll on spacebar
-                    wavesurfer.playPause();
-                }}
+            // Add play puse button
+            var playButton = document.createElement('button');
+
+            wavesurfer.on('play', function() {{
+                playButton.innerHTML = 'Pause';
+                playButton.style.position = 'center';
+                playButton.style.fontSize = '20px';
+                playButton.style.width = '100px';
+                playButton.style.backgroundColor = 'white';
+                playButton.style.border = '0px solid white';
+
+                playButton.onclick = function() {{
+                    wavesurfer.pause();
+                    playButton.innerHTML = 'Play';
+                    playButton.onclick = function() {{
+                        wavesurfer.play();
+                        playButton.innerHTML = 'Pause';
+                    }};
+                }};
+                document.getElementById('waveform').appendChild(playButton);
+            }});
+
+            // Add event listeners for mouse events to redirect focus
+            wavesurfer.on('interaction', function () {{
+                document.activeElement.blur();  // Remove focus from the current element
+                var focusElement = window.parent.document.querySelector('.main');
+                focusElement.focus();
             }});
         }});
     </script>
@@ -129,7 +151,7 @@ def wavesurfer_play(
 """
 
     # Embed the HTML code in the Streamlit app
-    st.components.v1.html(html_code, height=150)
+    st.components.v1.html(html_code, height=170)
 
 
 def plot_av(

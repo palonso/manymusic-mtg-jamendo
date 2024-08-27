@@ -25,23 +25,23 @@ def load_data():
     mtg_jamendo_file = "mtg-jamendo-dataset/data/autotagging.tsv"
     tracks, _, _ = commons.read_file(mtg_jamendo_file)
 
-    feature_file = "data/mtg-jamendo-predictions-algos.pk"
-    features = pd.read_pickle(feature_file)
+    integrated_loudness_file = "data/integrated_loudness.pk"
+    integrated_loudness = pd.read_pickle(integrated_loudness_file)
 
-    return tracks, features
+    return tracks, integrated_loudness
 
 
 @st.cache_resource
 def init():
     # Load ground truth data
-    tracks, features = load_data()
+    tracks, integrated_loudness = load_data()
 
     preselection_data = pd.read_csv(preselection_data_file, sep="\t")
     chunks = preselection_data["chunk_id"].unique()
 
-    features.index = [i.split("/")[1] for i in features.index]
+    integrated_loudness.index = [i.split("/")[1] for i in integrated_loudness.index]
 
-    return tracks, preselection_data, chunks, features
+    return tracks, preselection_data, chunks, integrated_loudness
 
 
 @st.cache_resource(max_entries=1)
@@ -204,7 +204,7 @@ else:
 
     # main program
     user_data_file = Path("annotations", st.session_state.user_uuid, "annotations.json")
-    tracks, preselection_data, chunks, features = init()
+    tracks, preselection_data, chunks, integrated_loudness = init()
 
     chunk_id = st.selectbox("Select a chunk to annotate", chunks)
     chunk_id = str(chunk_id)
@@ -237,7 +237,7 @@ else:
     tid = int(tids[st.session_state.tid_idx])
 
     # get value given index and column name
-    loudness_db = features.loc[str(tid), "integrated_loudness"]
+    loudness_db = integrated_loudness.loc[str(tid)]
     # compute gain reduction to reach target loudness
     target_loudness = -14
     trim = target_loudness - loudness_db

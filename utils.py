@@ -64,6 +64,96 @@ def play(tid: str, tracks: dict, autoplay: bool = False) -> None:
     st.audio(jamendo_url, format="audio/mp3", start_time=0, autoplay=autoplay)
 
 
+def wavesurfer_play(
+    tid: str,
+    tracks: dict,
+    autoplay: bool = False,
+    gain: float = 1.0,
+) -> None:
+    """Play a track and print tags from its tid."""
+
+    jamendo_url = audio_url(tid)
+    track = tracks[tid]
+    tags = [t.split("---")[1] for t in track["tags"]]
+
+    st.write("---")
+    st.write(f"**Track {tid}** - tags: {', '.join(tags)}")
+
+    html_code = f"""
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/wavesurfer.js"></script>
+    <style>
+        #waveform {{
+            width: 100%;
+            height: 128px;
+            margin: 0 auto;
+        }}
+        body {{
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    <div id="waveform"></div>
+
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function() {{
+            var wavesurfer = WaveSurfer.create({{
+                container: '#waveform',
+                waveColor: 'violet',
+                progressColor: 'purple',
+                height: 128,
+                barWidth: 2
+            }});
+
+            // Load audio from a URL and autoplay
+            wavesurfer.load('{jamendo_url}');
+            wavesurfer.setVolume({gain});
+            wavesurfer.on('ready', function() {{
+                wavesurfer.play();
+            }});
+
+            // Add play puse button
+            var playButton = document.createElement('button');
+
+            wavesurfer.on('play', function() {{
+                playButton.innerHTML = 'Pause';
+                playButton.style.position = 'center';
+                playButton.style.fontSize = '20px';
+                playButton.style.width = '100px';
+                playButton.style.backgroundColor = 'white';
+                playButton.style.border = '0px solid white';
+
+                playButton.onclick = function() {{
+                    wavesurfer.pause();
+                    playButton.innerHTML = 'Play';
+                    playButton.onclick = function() {{
+                        wavesurfer.play();
+                        playButton.innerHTML = 'Pause';
+                    }};
+                }};
+                document.getElementById('waveform').appendChild(playButton);
+            }});
+
+            // Add event listeners for mouse events to redirect focus
+            wavesurfer.on('interaction', function () {{
+                document.activeElement.blur();  // Remove focus from the current element
+                var focusElement = window.parent.document.querySelector('.main');
+                focusElement.focus();
+            }});
+        }});
+    </script>
+</body>
+</html>
+"""
+
+    # Embed the HTML code in the Streamlit app
+    st.components.v1.html(html_code, height=170)
+
+
 def plot_av(
     sample: np.ndarray,
     axvline_loc: float = 0,

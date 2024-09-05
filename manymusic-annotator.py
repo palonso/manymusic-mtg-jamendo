@@ -175,7 +175,7 @@ choices = {
 }
 choices_keys = list(choices.keys())
 
-preselection_data_file = Path("data", "preselection.tsv")
+preselection_data_file = Path("data", "candidates.tsv")
 
 
 # Generate or restore the UUID

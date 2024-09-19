@@ -121,7 +121,7 @@ def next_track(
             st.write("Going to the previous track")
         return
 
-    user_data["annotations"][chunk_id][tid] = {
+    user_data["annotations"][chunk_id][str(tid)] = {
         "answer": answer,
         "timestamp": str(datetime.now().isoformat()),
     }

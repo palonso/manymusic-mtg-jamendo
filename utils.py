@@ -55,11 +55,11 @@ def play(tid: str, tracks: dict, autoplay: bool = False) -> None:
     """Play a track and print tags from its tid."""
 
     jamendo_url = audio_url(tid)
-    track = tracks[tid]
-    tags = [t.split("---")[1] for t in track["tags"]]
+    # track = tracks[tid]
+    # tags = [t.split("---")[1] for t in track["tags"]]
 
     st.write("---")
-    st.write(f"**Track {tid}** - tags: {', '.join(tags)}")
+    st.write(f"**Track {tid}**")
 
     st.audio(jamendo_url, format="audio/mp3", start_time=0, autoplay=autoplay)
 
@@ -73,11 +73,11 @@ def wavesurfer_play(
     """Play a track and print tags from its tid."""
 
     jamendo_url = audio_url(tid)
-    track = tracks[tid]
-    tags = [t.split("---")[1] for t in track["tags"]]
+    # track = tracks[tid]
+    # tags = [t.split("---")[1] for t in track["tags"]]
 
     st.write("---")
-    st.write(f"**Track {tid}** - tags: {', '.join(tags)}")
+    st.write(f"**Track {tid}**")
 
     html_code = f"""
 <html lang="en">

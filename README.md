@@ -4,11 +4,13 @@ Streamlit app to create subsets of The MTG Jamendo dataset
 
 # Install
 
+0. Clone this repo:  `git clone https://github.com/seunggookim/manymusic-mtg-jamendo.git`
+
 1. Get [mtg-jamendo-dataset](https://github.com/MTG/mtg-jamendo-dataset) as a submodule:  `git submodule init && git submodule update`
 
-2. Create and activate a virtual env: `python3 -m venv venv && source venv/bin/activate`
+2. Create and activate a virtual env:  `python3 -m venv venv && source venv/bin/activate`
 
-3. Install the Python dependencies: `pip install -r requirements.txt`
+3. Install the Python dependencies:  `pip install -r requirements.txt`
 
 
 ## Generation of the ManyMusic song pre-selectiion

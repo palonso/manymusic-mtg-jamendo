@@ -13,7 +13,7 @@ Streamlit app to create subsets of The MTG Jamendo dataset
 3. Install the Python dependencies:  `pip install -r requirements.txt`
 
 
-## Generation of the ManyMusic song pre-selectiion
+## (not needed for annotation) Generation of the ManyMusic song pre-selectiion
 
 1. Copy the data into `data/`.
 The required files are: `mtg-jamendo-predictions-algos.pk`, `mtg-jamendo-predictions-av.pk`, ` mtg-jamendo-predictions.tsv`, and the timewise `predictions/`.

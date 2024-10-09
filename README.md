@@ -28,4 +28,5 @@ The required files are: `mtg-jamendo-predictions-algos.pk`, `mtg-jamendo-predict
 
 ## Annotation of the ManyMusic song pre-selection
 
-1. `streamlit run manymusic-annotator.py`
+1. Go to the cloned directory and activate the virtual environment (VENV):  `source venv/bin/activate`  
+2. Run script:  `streamlit run manymusic-annotator.py`

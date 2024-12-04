@@ -301,11 +301,11 @@ else:
 
     For every track, please select one of the following options:
     - `✅ all good!` The track has the potential to evoke emotions.
-    - `🔇 bad audio quality` The track features audio quality problems that may interfere with the emotional response.
-    - `😐 not emotionally conveying` the track is not emotionally conveying (e.g., elevator music, too repetitive, ...)
-    - `🤬 explicit content` The track contains explicit content.
-    - `©️  copyrighted content` The track contains copyrighted content from a recognized track.
-    - `👎 other reasons` The track should not be included in the dataset for other reasons (contains irony, is attached to a specific event or ceremony, ...)
+    - `🔇 bad audio quality` The track has audio quality problems and/or very low production quality that may interfere with the emotional response. Importantly, this is when noise or poor recording quality exists seemingly without artistic intentions. For example, static (white) noise, clipping, environmental noise, inappreciable performance or poor MIDI rendering, and so on.
+    - `😐 not emotionally conveying` The track is not emotionally conveying (e.g., elevator music, too repetitive, ...). Albeit this option can be subjective, select this option if the track is boring and/or disgusting to you.
+    - `🤬 explicit content` The track contains explicit or highly sensitive subject matter, including but not limited to explicit language, violence, sexual content, or graphic imagery.
+    - `©️  copyrighted content` The track contains recognizable content from copyrighted music in an original form and/or an altered but recognizable sampling of well-known music. 
+    - `👎 other reasons` The track should not be included in the dataset for other reasons (contains irony, pranks; or is highly associated with a specific content (e.g., movie themes) or ceremony (e.g., Christmas carols)
     """
     )
 

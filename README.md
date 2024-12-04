@@ -10,6 +10,8 @@ Streamlit app to create subsets of The MTG Jamendo dataset
 
 3. Install the Python dependencies: `pip install -r requirements.txt`
 
+> [!NOTE]  
+> An additional requirements file `requirements-dev.txt` should be used to run other functionalities apart from the Streamlit annotation app.
 
 ## Generation of the ManyMusic song pre-selectiion
 

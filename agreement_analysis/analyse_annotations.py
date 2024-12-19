@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
 
 # Load chunk info
 preselection_data_file = Path("data", "candidates.tsv")
@@ -14,7 +16,34 @@ ann_dir = Path("agreement_analysis", "annotations")
 ann_files = ann_dir.rglob("*.json")
 
 
-# Generate chunk data
+def prune_incomplete_chunks(data: dict) -> dict:
+    """Remove chunks that are not annotated by 3 users"""
+
+    for chunk_id in list(data.keys()):
+        n_annotators = len(data[chunk_id]["user_ids"])
+        if n_annotators < 3:
+            print(f"discarding chunk {chunk_id} with {n_annotators} annotators")
+            del data[chunk_id]
+
+    return data
+
+
+def compute_full_agreement(data: dict) -> list[str]:
+    agreements = []
+    for tidx in range(len(data["track_ids"])):
+        answers = [data["annotations"][uid][tidx] for uid in data["user_ids"]]
+
+        # check if all values are the same
+        if len(set(answers)) == 1:
+            agreements.append(answers[0])
+        else:
+            agreements.append("disagreement")
+
+    return agreements
+
+
+print("Loading annotation data")
+
 data = {}
 for ann_file in ann_files:
     with open(ann_file, "r") as f:
@@ -60,7 +89,40 @@ for ann_file in ann_files:
                 ann["answer"] for ann in chunk_anns.values()
             ]
 
+print("\n\nPruining incomplete chunks")
+data = prune_incomplete_chunks(data)
 
-# Create method to get chunk analysis
+print(f"Continuing with {len(data)} chunks: {list(data.keys())}")
 
 # Promediate results across all chunks
+
+# for now take one chunk
+chunk_id = "0"
+chunk_data = data[chunk_id]
+
+c_fa = compute_full_agreement(chunk_data)
+# ax = sns.histplot(x=c_fa).set_title(f"Full agreement for chunk {chunk_id}")
+# plt.show()
+
+answer = []
+annotator = []
+for uid in chunk_data["user_ids"]:
+    answer.extend(chunk_data["annotations"][uid])
+    annotator.extend([uid] * len(chunk_data["track_ids"]))
+
+# trim annotator name for clarity
+annotator = [a.split("-")[0] for a in annotator]
+answer = [a.replace("_", " ") for a in answer]
+
+df = pd.DataFrame({"answer": answer, "annotator": annotator})
+
+# print unique annotators
+
+sns.histplot(
+    data=df,
+    x="annotator",
+    hue="answer",
+    multiple="dodge",
+    # log_scale=(0, 2),
+).set_title(f"Full agreement for chunk {chunk_id}")
+plt.savefig("annotator_answer.png")

@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+from typing import List, Tuple
+from collections import Counter
 
 import pandas as pd
 import seaborn as sns
@@ -28,18 +30,48 @@ def prune_incomplete_chunks(data: dict) -> dict:
     return data
 
 
-def compute_full_agreement(data: dict) -> list[str]:
+def parse_answer(answer: str) -> str:
+    answer = answer.replace("_", " ")
+    answer = answer.replace("all good", "good")
+    answer = answer.replace("not emotionally conveying", "not emo.")
+    answer = answer.replace("other reasons", "other")
+    return answer
+
+
+def compute_full_agreement(data: dict) -> Tuple[List[str], int]:
     agreements = []
+    n_good = 0
     for tidx in range(len(data["track_ids"])):
         answers = [data["annotations"][uid][tidx] for uid in data["user_ids"]]
 
         # check if all values are the same
         if len(set(answers)) == 1:
-            agreements.append(answers[0])
+            parsed_anwser = parse_answer(answers[0])
+            agreements.append(parsed_anwser)
+            if answers[0] == "all_good":
+                n_good += 1
         else:
-            agreements.append("disagreement")
+            agreements.append("disagree")
 
-    return agreements
+    return agreements, n_good
+
+
+def compute_maj_agreement(data: dict) -> Tuple[List[str], int]:
+    agreements = []
+    n_good = 0
+    for tidx in range(len(data["track_ids"])):
+        answers = [data["annotations"][uid][tidx] for uid in data["user_ids"]]
+
+        # check if only one of the annotators disagrees
+        if len(set(answers)) <= 2:
+            parsed_anwser = parse_answer(answers[0])
+            agreements.append(parsed_anwser)
+            if answers[0] == "all_good":
+                n_good += 1
+        else:
+            agreements.append("disagree")
+
+    return agreements, n_good
 
 
 print("Loading annotation data")
@@ -92,37 +124,81 @@ for ann_file in ann_files:
 print("\n\nPruining incomplete chunks")
 data = prune_incomplete_chunks(data)
 
-print(f"Continuing with {len(data)} chunks: {list(data.keys())}")
 
-# Promediate results across all chunks
+# sort chunk ids
+chunk_ids = [int(i) for i in data.keys()]
+chunk_ids.sort()
+chunk_ids = [str(i) for i in chunk_ids]
 
-# for now take one chunk
-chunk_id = "0"
-chunk_data = data[chunk_id]
+print(f"Continuing with {len(chunk_ids)} chunks: {chunk_ids}")
 
-c_fa = compute_full_agreement(chunk_data)
-# ax = sns.histplot(x=c_fa).set_title(f"Full agreement for chunk {chunk_id}")
-# plt.show()
+sns.set_style("darkgrid")
+sns.set(font_scale=0.85)
+y_max = 200
 
-answer = []
-annotator = []
-for uid in chunk_data["user_ids"]:
-    answer.extend(chunk_data["annotations"][uid])
-    annotator.extend([uid] * len(chunk_data["track_ids"]))
+f, ax = plt.subplots(len(data.keys()), 3, figsize=(10, 10))
 
-# trim annotator name for clarity
-annotator = [a.split("-")[0] for a in annotator]
-answer = [a.replace("_", " ") for a in answer]
 
-df = pd.DataFrame({"answer": answer, "annotator": annotator})
+for i, chunk_id in enumerate(chunk_ids):
+    chunk_data = data[chunk_id]
 
-# print unique annotators
+    c_fa, n_good = compute_full_agreement(chunk_data)
+    keys, values = zip(*Counter(c_fa).most_common())
 
-sns.histplot(
-    data=df,
-    x="annotator",
-    hue="answer",
-    multiple="dodge",
-    # log_scale=(0, 2),
-).set_title(f"Full agreement for chunk {chunk_id}")
-plt.savefig("annotator_answer.png")
+    # % of good and bad
+    good_per = 100 * n_good / len(c_fa)
+    sns.barplot(
+        x=keys,
+        y=values,
+        order=keys,
+        ax=ax[i, 0],
+    ).set_title(
+        f"Chunk {chunk_id} full agreement\n Good: {n_good}/{len(c_fa)} ({good_per:.1f}%)"
+    )
+    ax[i, 0].set_ylim(0, y_max)
+    ax[i, 0].set_xticklabels(ax[i, 0].get_xticklabels(), rotation=90)
+
+    c_fa, n_good = compute_maj_agreement(chunk_data)
+    keys, values = zip(*Counter(c_fa).most_common())
+
+    # % of good and bad
+    good_per = 100 * n_good / len(c_fa)
+
+    sns.barplot(
+        x=keys,
+        y=values,
+        order=keys,
+        ax=ax[i, 1],
+    ).set_title(
+        f"Chunk {chunk_id} majority agreement\n Good: {n_good}/{len(c_fa)} ({good_per:.1f}%)"
+    )
+    ax[i, 1].set_ylim(0, y_max)
+    ax[i, 1].set_xticklabels(ax[i, 1].get_xticklabels(), rotation=90)
+
+    answer = []
+    annotator = []
+    for uid in chunk_data["user_ids"]:
+        answer.extend(chunk_data["annotations"][uid])
+        annotator.extend([uid] * len(chunk_data["track_ids"]))
+
+    # trim annotator name for clarity
+    annotator = [a.split("-")[0] for a in annotator]
+    answer = [a.replace("_", " ") for a in answer]
+
+    df = pd.DataFrame({"answer": answer, "annotator": annotator})
+
+    # print unique annotators
+    sns.histplot(
+        data=df,
+        x="annotator",
+        hue="answer",
+        multiple="dodge",
+        ax=ax[i, 2],
+        # log_scale=(0, 2),
+    ).set_title(f"Chunk {chunk_id} annotator answers\n")
+    ax[i, 2].set_ylim(0, y_max)
+
+# TODO Promediate results across all chunks
+
+plt.subplots_adjust(left=0.1, bottom=0.12, right=0.9, top=0.9, wspace=0.4, hspace=0.7)
+plt.savefig("agreement_analysis.png")

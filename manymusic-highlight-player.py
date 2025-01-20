@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
+from scipy.ndimage import median_filter
 
 
 LUFS_TARGET = -14
@@ -95,7 +97,7 @@ def wavesurfer_play(
 """
 
     # Embed the HTML code in the Streamlit app
-    st.components.v1.html(html_code, height=170)
+    components.html(html_code, height=170)
 
 
 @st.cache_data
@@ -153,32 +155,83 @@ def get_gain(tid: str):
     return gain
 
 
-def get_highlight_timestamps(tid: str):
+def get_highlight_timestamps(tid: str, smoothing: str = "median"):
     dur_tgt = 15
     dur_av = 1
+    in_out_margin = 15
+
     k_size = dur_tgt // dur_av
 
     x = AV_DATA[int(tid)]
-    x_avg_a, x_avg_v = np.mean(x, axis=0)
 
     # compute the average for x with a kernel of size 5
-    x_a_smooth = np.convolve(x[:, 0], np.ones(k_size) / k_size, mode="same")
-    x_v_smooth = np.convolve(x[:, 1], np.ones(k_size) / k_size, mode="same")
+    if smoothing == "median":
+        x_a_smooth = median_filter(x[:, 0], size=k_size)
+        x_v_smooth = median_filter(x[:, 1], size=k_size)
 
-    a_a_diff = np.abs(x_a_smooth - x_avg_a)
-    a_v_diff = np.abs(x_v_smooth - x_avg_v)
+        x_thres_a, x_thres_v = np.mean(x, axis=0)
+        thres = np.mean([x_thres_a, x_thres_v])
 
-    avg_diff = np.mean([a_a_diff, a_v_diff], axis=0)
-    middle_frame = np.argmin(avg_diff)
+    elif smoothing == "mean":
+        x_a_smooth = np.convolve(x[:, 0], np.ones(k_size) / k_size, mode="same")
+        x_v_smooth = np.convolve(x[:, 1], np.ones(k_size) / k_size, mode="same")
+
+        x_thres_a, x_thres_v = np.median(x, axis=0)
+        thres = np.mean([x_thres_a, x_thres_v])
+
+    else:
+        raise NotImplementedError(
+            f"{smoothing} is not implemented. Use either 'median' or 'mean'"
+        )
+
+    # compute error
+    a_a_err = np.abs(x_a_smooth - x_thres_a)
+    a_v_err = np.abs(x_v_smooth - x_thres_v)
+
+    # average A/V error
+    avg_err = np.mean([a_a_err, a_v_err], axis=0)
+
+    # discard intro/outro
+    avg_err_d = avg_err[in_out_margin:-in_out_margin]
+
+    # select timestamp
+    middle_frame = np.argmin(avg_err_d) + in_out_margin
 
     start = int(middle_frame - k_size // 2)
     end = int(middle_frame + k_size // 2)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(x)
-    ax.axvline(start, color="red")
-    ax.axvline(end, color="red")
-    ax.set_title(f"Track {tid} highlight")
+    fig, ax = plt.subplots(2, figsize=(10, 5))
+    ax[0].grid()
+    ax[1].grid()
+
+    # plot segment decissions
+    ax[0].axvline(start, color="black")
+    ax[0].axvline(end, color="black")
+    for i in range(2):
+        ax[i].axvline(in_out_margin, color="red")
+        ax[i].axvline(len(x) - in_out_margin, color="red")
+
+    # plot average and median and add legend
+    ax[0].axhline(thres, label="threshold", color="green")
+
+    ax[0].plot(x)
+    ax[0].plot(x_a_smooth, color="blue", label="arousal")
+    ax[0].plot(x_v_smooth, color="orange", label="valence")
+
+    ax[0].set_title(f"Track {tid} highlight")
+
+    ax[0].legend()
+
+    ax[1].plot(avg_err)
+    ax[1].set_title("Error signal")
+
+    # increase vertical separation between plots
+
+    # remove plot margin
+    ax[0].margins(x=0)
+    ax[1].margins(x=0)
+
+    plt.tight_layout()
 
     st.pyplot(fig)
 
@@ -195,7 +248,9 @@ TIDS, LUFS, AV_DATA = load_data()
 tid = get_tid()
 gain = get_gain(tid)
 
-start, end = get_highlight_timestamps(tid)
+smoothing = st.selectbox("Smoothing", ["median", "mean"])
+
+start, end = get_highlight_timestamps(tid, smoothing=str(smoothing))
 
 wavesurfer_play(tid, gain=gain, start=start, end=end)
 

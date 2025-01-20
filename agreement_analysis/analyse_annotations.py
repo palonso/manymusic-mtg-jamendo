@@ -108,6 +108,21 @@ for ann_file in ann_files:
 
                 continue
 
+            if user_id == "373cf81a-bb35-46f7-8a21-b2a890174a01" and chunk_id in (
+                "3",
+                "7",
+                "8",
+                "11",
+                "12",
+            ):
+                continue
+
+            if (
+                user_id == "e80b0144-bceb-4c21-9200-d5252513f23f_chunk_6"
+                and chunk_id in ("7", "8")
+            ):
+                continue
+
             else:
                 print(f"Chunk {chunk_id} annotated by {user_id} OK!")
 

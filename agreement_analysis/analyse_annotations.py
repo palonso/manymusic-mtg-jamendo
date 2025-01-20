@@ -26,6 +26,11 @@ def prune_incomplete_chunks(data: dict) -> dict:
         if n_annotators < 3:
             print(f"discarding chunk {chunk_id} with {n_annotators} annotators")
             del data[chunk_id]
+        if n_annotators > 3:
+            print(f"WARNING chunk {chunk_id} with {n_annotators} annotators")
+            for uid in data[chunk_id]["user_ids"]:
+                print("\t", uid)
+            print("\n")
 
     return data
 

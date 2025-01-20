@@ -142,7 +142,7 @@ for ann_file in ann_files:
                 ann["answer"] for ann in chunk_anns.values()
             ]
 
-print("\n\nPruining incomplete chunks")
+print("\n\nPruning incomplete chunks")
 data = prune_incomplete_chunks(data)
 
 

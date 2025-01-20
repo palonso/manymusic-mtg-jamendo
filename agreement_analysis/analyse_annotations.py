@@ -132,6 +132,11 @@ chunk_ids = [str(i) for i in chunk_ids]
 
 print(f"Continuing with {len(chunk_ids)} chunks: {chunk_ids}")
 
+
+# Export tsv with all the good files with the fields: track_id, chunk_id, user_1_id, user_2_id, user_3_id
+tsv_data = []
+
+
 sns.set_style("darkgrid")
 sns.set(font_scale=0.85)
 y_max = 200
@@ -144,6 +149,21 @@ for i, chunk_id in enumerate(chunk_ids):
 
     c_fa, n_good = compute_full_agreement(chunk_data)
     keys, values = zip(*Counter(c_fa).most_common())
+
+    for tid, answer in zip(chunk_data["track_ids"], c_fa):
+        if answer == "good":
+            tsv_data.append(
+                {
+                    "track_id": tid,
+                    "chunk_id": chunk_id,
+                    "user_1_id": chunk_data["user_ids"][0].split("-")[0],
+                    "user_2_id": chunk_data["user_ids"][1].split("-")[0],
+                    "user_3_id": chunk_data["user_ids"][2].split("-")[0],
+                }
+            )
+
+    total_good_fa += n_good
+    total_tracks += len(c_fa)
 
     # % of good and bad
     good_per = 100 * n_good / len(c_fa)
@@ -202,3 +222,15 @@ for i, chunk_id in enumerate(chunk_ids):
 
 plt.subplots_adjust(left=0.1, bottom=0.12, right=0.9, top=0.9, wspace=0.4, hspace=0.7)
 plt.savefig("agreement_analysis.png")
+
+
+# print all good results
+print(
+    f"Total good full agreement: {total_good_fa}/{total_tracks} ({100 * total_good_fa / total_tracks:.1f}%)"
+)
+print(
+    f"Total good majority agreement: {total_good_maj}/{total_tracks} ({100 * total_good_maj / total_tracks:.1f}%)"
+)
+
+tsv_df = pd.DataFrame(tsv_data)
+tsv_df.to_csv("data/full_agreement_tracks.tsv", sep="\t", index=False)

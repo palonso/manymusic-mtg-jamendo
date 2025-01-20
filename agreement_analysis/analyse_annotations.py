@@ -41,6 +41,7 @@ def parse_answer(answer: str) -> str:
     answer = answer.replace("not emotionally conveying", "not emo.")
     answer = answer.replace("other reasons", "other")
     answer = answer.replace("copyrighted content", "copyright")
+    answer = answer.replace("explicit content", "explicit")
     return answer
 
 
@@ -156,17 +157,16 @@ print(f"Continuing with {len(chunk_ids)} chunks: {chunk_ids}")
 
 # Export tsv with all the good files with the fields: track_id, chunk_id, user_1_id, user_2_id, user_3_id
 tsv_data = []
-
-
-sns.set_style("darkgrid")
-sns.set(font_scale=0.85)
-y_max = 200
-
-f, ax = plt.subplots(len(data.keys()), 3, figsize=(10, 10))
-
 total_tracks = 0
 total_good_fa = 0
 total_good_maj = 0
+
+# max n tracks (for y axis)
+y_max = 200
+
+# Init plot
+sns.set_theme(style="whitegrid")
+f, ax = plt.subplots(len(data.keys()), 3, figsize=(15, 40))
 
 for i, chunk_id in enumerate(chunk_ids):
     chunk_data = data[chunk_id]
@@ -200,7 +200,7 @@ for i, chunk_id in enumerate(chunk_ids):
         f"Chunk {chunk_id} full agreement\n Good: {n_good}/{len(c_fa)} ({good_per:.1f}%)"
     )
     ax[i, 0].set_ylim(0, y_max)
-    ax[i, 0].set_xticklabels(ax[i, 0].get_xticklabels(), rotation=90)
+    # ax[i, 0].set_xticklabels(ax[i, 0].get_xticklabels(), rotation=90)
 
     c_fa, n_good = compute_maj_agreement(chunk_data)
     keys, values = zip(*Counter(c_fa).most_common())
@@ -219,7 +219,7 @@ for i, chunk_id in enumerate(chunk_ids):
         f"Chunk {chunk_id} majority agreement\n Good: {n_good}/{len(c_fa)} ({good_per:.1f}%)"
     )
     ax[i, 1].set_ylim(0, y_max)
-    ax[i, 1].set_xticklabels(ax[i, 1].get_xticklabels(), rotation=90)
+    # ax[i, 1].set_xticklabels(ax[i, 1].get_xticklabels(), rotation=90)
 
     answer = []
     annotator = []
@@ -233,20 +233,41 @@ for i, chunk_id in enumerate(chunk_ids):
 
     df = pd.DataFrame({"answer": answer, "annotator": annotator})
 
+    # sort df according to answer alphabetically
+    df["answer"] = pd.Categorical(
+        df["answer"], categories=sorted(df["answer"].unique())
+    )
+
+    color_dict = {
+        "all good": "#4C72B0",
+        "bad audio": "#DD8452",
+        "copyrighted content": "#55A868",
+        "explicit content": "#C44E52",
+        "not emotionally conveying": "#8172B3",
+        "other reasons": "#937860",
+    }
     # print unique annotators
-    sns.histplot(
+    g = sns.histplot(
         data=df,
         x="annotator",
         hue="answer",
         multiple="dodge",
         ax=ax[i, 2],
-        # log_scale=(0, 2),
+        palette=color_dict,
     ).set_title(f"Chunk {chunk_id} annotator answers\n")
+
     ax[i, 2].set_ylim(0, y_max)
+
+    # draw legend bellow the plot
+    if i < len(chunk_ids) - 1:
+        ax[i, 2].get_legend().remove()
+    else:
+        sns.move_legend(ax[i, 2], "lower center", bbox_to_anchor=(0.5, -1.3))
 
 # TODO Promediate results across all chunks
 
-plt.subplots_adjust(left=0.1, bottom=0.12, right=0.9, top=0.9, wspace=0.4, hspace=0.7)
+# plt.subplots_adjust(left=0.1, right=0.9, wspace=1, hspace=1.5)
+plt.tight_layout()
 plt.savefig("agreement_analysis.png")
 
 

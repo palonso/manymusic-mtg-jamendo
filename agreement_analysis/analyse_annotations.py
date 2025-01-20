@@ -164,6 +164,9 @@ y_max = 200
 
 f, ax = plt.subplots(len(data.keys()), 3, figsize=(10, 10))
 
+total_tracks = 0
+total_good_fa = 0
+total_good_maj = 0
 
 for i, chunk_id in enumerate(chunk_ids):
     chunk_data = data[chunk_id]
@@ -201,6 +204,8 @@ for i, chunk_id in enumerate(chunk_ids):
 
     c_fa, n_good = compute_maj_agreement(chunk_data)
     keys, values = zip(*Counter(c_fa).most_common())
+
+    total_good_maj += n_good
 
     # % of good and bad
     good_per = 100 * n_good / len(c_fa)

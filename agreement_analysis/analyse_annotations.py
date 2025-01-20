@@ -40,6 +40,7 @@ def parse_answer(answer: str) -> str:
     answer = answer.replace("all good", "good")
     answer = answer.replace("not emotionally conveying", "not emo.")
     answer = answer.replace("other reasons", "other")
+    answer = answer.replace("copyrighted content", "copyright")
     return answer
 
 

@@ -156,7 +156,8 @@ print(f"Continuing with {len(chunk_ids)} chunks: {chunk_ids}")
 
 
 # Export tsv with all the good files with the fields: track_id, chunk_id, user_1_id, user_2_id, user_3_id
-tsv_data = []
+tsv_data_full = []
+tsv_data_maj = []
 total_tracks = 0
 total_good_fa = 0
 total_good_maj = 0
@@ -176,7 +177,7 @@ for i, chunk_id in enumerate(chunk_ids):
 
     for tid, answer in zip(chunk_data["track_ids"], c_fa):
         if answer == "good":
-            tsv_data.append(
+            tsv_data_full.append(
                 {
                     "track_id": tid,
                     "chunk_id": chunk_id,
@@ -202,13 +203,25 @@ for i, chunk_id in enumerate(chunk_ids):
     ax[i, 0].set_ylim(0, y_max)
     # ax[i, 0].set_xticklabels(ax[i, 0].get_xticklabels(), rotation=90)
 
-    c_fa, n_good = compute_maj_agreement(chunk_data)
-    keys, values = zip(*Counter(c_fa).most_common())
+    c_ma, n_good = compute_maj_agreement(chunk_data)
+    keys, values = zip(*Counter(c_ma).most_common())
+
+    for tid, answer in zip(chunk_data["track_ids"], c_ma):
+        if answer == "good":
+            tsv_data_maj.append(
+                {
+                    "track_id": tid,
+                    "chunk_id": chunk_id,
+                    "user_1_id": chunk_data["user_ids"][0].split("-")[0],
+                    "user_2_id": chunk_data["user_ids"][1].split("-")[0],
+                    "user_3_id": chunk_data["user_ids"][2].split("-")[0],
+                }
+            )
 
     total_good_maj += n_good
 
     # % of good and bad
-    good_per = 100 * n_good / len(c_fa)
+    good_per = 100 * n_good / len(c_ma)
 
     sns.barplot(
         x=keys,
@@ -216,7 +229,7 @@ for i, chunk_id in enumerate(chunk_ids):
         order=keys,
         ax=ax[i, 1],
     ).set_title(
-        f"Chunk {chunk_id} majority agreement\n Good: {n_good}/{len(c_fa)} ({good_per:.1f}%)"
+        f"Chunk {chunk_id} majority agreement\n Good: {n_good}/{len(c_ma)} ({good_per:.1f}%)"
     )
     ax[i, 1].set_ylim(0, y_max)
     # ax[i, 1].set_xticklabels(ax[i, 1].get_xticklabels(), rotation=90)
@@ -279,5 +292,8 @@ print(
     f"Total good majority agreement: {total_good_maj}/{total_tracks} ({100 * total_good_maj / total_tracks:.1f}%)"
 )
 
-tsv_df = pd.DataFrame(tsv_data)
+tsv_df = pd.DataFrame(tsv_data_full)
 tsv_df.to_csv("data/full_agreement_tracks.tsv", sep="\t", index=False)
+
+tsv_df = pd.DataFrame(tsv_data_maj)
+tsv_df.to_csv("data/majority_agreement_tracks.tsv", sep="\t", index=False)

@@ -155,7 +155,7 @@ def get_gain(tid: str):
     return gain
 
 
-def get_highlight_timestamps(tid: str, smoothing: str = "median"):
+def get_highlight_timestamps(tid: str, smoothing: str = "median", mode: str = "median"):
     dur_tgt = 15
     dur_av = 1
     in_out_margin = 15
@@ -184,21 +184,36 @@ def get_highlight_timestamps(tid: str, smoothing: str = "median"):
             f"{smoothing} is not implemented. Use either 'median' or 'mean'"
         )
 
-    # compute error
-    a_a_err = np.abs(x_a_smooth - x_thres_a)
-    a_v_err = np.abs(x_v_smooth - x_thres_v)
+    if mode == "median":
+        # compute error
+        a_a_err = np.abs(x_a_smooth - x_thres_a)
+        a_v_err = np.abs(x_v_smooth - x_thres_v)
 
-    # average A/V error
-    avg_err = np.mean([a_a_err, a_v_err], axis=0)
+        # average A/V error
+        avg_err = np.mean([a_a_err, a_v_err], axis=0)
 
-    # discard intro/outro
-    avg_err_d = avg_err[in_out_margin:-in_out_margin]
+        # discard intro/outro
+        avg_err_d = avg_err[in_out_margin:-in_out_margin]
 
-    # select timestamp
-    middle_frame = np.argmin(avg_err_d) + in_out_margin
+        # select timestamp
+        middle_frame = np.argmin(avg_err_d) + in_out_margin
 
-    start = int(middle_frame - k_size // 2)
-    end = int(middle_frame + k_size // 2)
+        start = int(middle_frame - k_size // 2)
+        end = int(middle_frame + k_size // 2)
+
+    elif mode == "max_arousal":
+        # discard intro/outro
+        x_a_smooth_d = x_a_smooth[in_out_margin:-in_out_margin]
+
+        # select timestamp
+        middle_frame = np.argmax(x_a_smooth_d) + in_out_margin
+
+        start = int(middle_frame - k_size // 2)
+        end = int(middle_frame + k_size // 2)
+    else:
+        raise NotImplementedError(
+            f"{mode} is not implemented. Use either 'median' or 'max_arousal'"
+        )
 
     fig, ax = plt.subplots(2, figsize=(10, 5))
     ax[0].grid()
@@ -222,8 +237,9 @@ def get_highlight_timestamps(tid: str, smoothing: str = "median"):
 
     ax[0].legend()
 
-    ax[1].plot(avg_err)
-    ax[1].set_title("Error signal")
+    if mode == "median":
+        ax[1].plot(avg_err)
+        ax[1].set_title("Error signal")
 
     # increase vertical separation between plots
 
@@ -250,7 +266,8 @@ gain = get_gain(tid)
 
 smoothing = st.selectbox("Smoothing", ["median", "mean"])
 
-start, end = get_highlight_timestamps(tid, smoothing=str(smoothing))
+mode = st.selectbox("Mode", ["median", "max_arousal"])
+start, end = get_highlight_timestamps(tid, smoothing=str(smoothing), mode=str(mode))
 
 wavesurfer_play(tid, gain=gain, start=start, end=end)
 
